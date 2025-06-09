@@ -3,49 +3,23 @@
 
 import type {
   StockDisplayProfile,
-  NepseStockSymbol,
-  Broker,
+  NepseStockSymbol, // is now string
+  Broker, // Should be BrokerSelectItem for form usage if directly returned
+  BrokerSelectItem,
   ProcessedStockInfo,
-  Company // Added for more specific type from service
+  Company,
+  CompanySelectItem 
 } from '@/types';
 import {
-  getStockDisplayProfile, // Renamed from getStockDetails
-  getAllBrokers,
-  getStocksByBroker,
-  getAllCompaniesForSearch // New service function
+  getStockDisplayProfile, 
+  getAllBrokers as getAllBrokersService, // Renamed for clarity
+  getStocksByBroker as getStocksByBrokerService, // Renamed for clarity
+  getAllCompaniesForSearch as getAllCompaniesForSearchService // New service function
 } from '@/services/nepse-data-service';
 import { generateStockReport, type GenerateStockReportInput, type GenerateStockReportOutput } from '@/ai/flows/generate-stock-report';
 import { assessConfidenceLevel, type AssessConfidenceLevelInput, type AssessConfidenceLevelOutput } from '@/ai/flows/assess-confidence-level';
 import { generateRiskDisclaimer, type GenerateRiskDisclaimerInput, type GenerateRiskDisclaimerOutput } from '@/ai/flows/generate-risk-disclaimer';
 
-// --- Helper function to format data for AI (NEEDS REFACTORING for new data types) ---
-/*
-function formatDataForAI(data: any, type: 'fundamental' | 'technical' | 'news_summary' | 'company_profile'): string {
-  // This function needs a complete overhaul to work with the new, richer data types
-  // like StockDisplayProfile, FinancialReport, CompanyNewsEvent, etc.
-  // For now, it's heavily simplified or you might pass specific fields directly.
-  
-  if (type === 'company_profile' && data && data.company) {
-    return `Company: ${data.company.name} (${data.company.ticker_symbol}), Industry: ${data.company.industry_sector || 'N/A'}. Description: ${data.company.description || 'N/A'}`;
-  }
-  if (type === 'fundamental' && data && data.latestFinancialReport) {
-    const report = data.latestFinancialReport;
-    return `Latest Report (${report.report_date}, ${report.period_type}): Revenue: ${report.revenue || 'N/A'}, Net Income: ${report.net_income || 'N/A'}, EPS: ${report.eps || 'N/A'}`;
-  }
-  if (type === 'technical' && data && data.technicalIndicators) {
-    return (data.technicalIndicators as CompanyTechnicalIndicator[])
-      .map(item => `${item.indicator_name}: ${item.value} (${item.interpretation || 'N/A'})`)
-      .join(', ');
-  }
-  if (type === 'news_summary' && data && data.recentNews) {
-    return (data.recentNews as CompanyNewsEvent[])
-      .slice(0, 3)
-      .map(item => `Title: ${item.title}, Summary: ${item.summary || 'No summary'}`)
-      .join('; ');
-  }
-  return JSON.stringify(data); // Fallback, but ideally avoid
-}
-*/
 
 // --- Data Fetching Actions (Delegating to nepse-data-service) ---
 
@@ -54,31 +28,45 @@ export async function fetchStockDetailsAction(symbol: NepseStockSymbol): Promise
   return getStockDisplayProfile(symbol);
 }
 
-export async function fetchAllCompaniesForSearchAction(): Promise<Pick<Company, 'id' | 'ticker_symbol' | 'name'>[]> {
+export async function fetchAllCompaniesForSearchAction(): Promise<CompanySelectItem[]> {
   // console.log("Action: Fetching all companies for search via nepse-data-service");
-  return getAllCompaniesForSearch();
+  return getAllCompaniesForSearchService();
 }
 
-export async function fetchAllBrokersAction(): Promise<Broker[]> {
+export async function fetchAllBrokersAction(): Promise<BrokerSelectItem[]> {
   // console.log("Action: Fetching all brokers via nepse-data-service");
-  return getAllBrokers();
+  // The service returns Broker[], we might need to map it to BrokerSelectItem if structure differs
+  const brokers = await getAllBrokersService();
+  return brokers.map(b => ({ id: b.id, broker_code: b.broker_code, name: b.name }));
 }
 
-export async function fetchStocksByBrokerAction(brokerCode: string): Promise<ProcessedStockInfo[]> {
-  // console.log(`Action: Fetching stocks for broker code ${brokerCode} via nepse-data-service`);
-  return getStocksByBroker(brokerCode);
+export async function fetchStocksByBrokerAction(brokerId: string): Promise<ProcessedStockInfo[]> {
+  // console.log(`Action: Fetching stocks for broker ID ${brokerId} via nepse-data-service`);
+  // The service getStocksByBroker now expects brokerId (UUID) instead of brokerCode
+  return getStocksByBrokerService(brokerId);
 }
 
 
 // --- AI-Related Actions (Input formatting needs review based on new StockDisplayProfile) ---
 
-export async function generateAiStockReportAction(stockProfile: StockDisplayProfile): Promise<GenerateStockReportOutput> {
-  // TODO: Update input formatting based on the rich StockDisplayProfile
+export async function generateAiStockReportAction(stockProfile: StockDisplayProfile | null): Promise<GenerateStockReportOutput> {
+  if (!stockProfile || !stockProfile.company) {
+    // Handle cases where stockProfile might be null or company data is missing
+    // This can happen if fetchStockDetailsAction returns null
+    console.warn("generateAiStockReportAction: stockProfile or company data is null. Returning default report.");
+    return {
+      report: "Could not generate AI report: Essential stock data is missing.",
+      score: "N/A",
+      confidence: 0,
+      disclaimer: "Data unavailable, AI analysis cannot be performed.",
+    };
+  }
+  
   const fundamentalDataStr = stockProfile.latestFinancialReport 
-    ? `Report Date: ${stockProfile.latestFinancialReport.report_date}, Revenue: ${stockProfile.latestFinancialReport.revenue}, Net Income: ${stockProfile.latestFinancialReport.net_income}, EPS: ${stockProfile.latestFinancialReport.eps}`
-    : "Not available";
-  const technicalIndicatorsStr = stockProfile.technicalIndicators?.map(ti => `${ti.indicator_name}: ${ti.value} (${ti.interpretation})`).join(', ') || "Not available";
-  const newsStr = stockProfile.recentNews?.map(n => `${n.title}: ${n.summary}`).join('; ') || "Not available";
+    ? `Report Date: ${stockProfile.latestFinancialReport.report_date}, Revenue: ${stockProfile.latestFinancialReport.revenue ?? 'N/A'}, Net Income: ${stockProfile.latestFinancialReport.net_income ?? 'N/A'}, EPS: ${stockProfile.latestFinancialReport.eps ?? 'N/A'}`
+    : "Fundamental data not available";
+  const technicalIndicatorsStr = stockProfile.technicalIndicators?.map(ti => `${ti.indicator_name}: ${ti.value ?? 'N/A'} (${ti.interpretation ?? 'N/A'})`).join(', ') || "Technical indicators not available";
+  const newsStr = stockProfile.recentNews?.map(n => `${n.headline}: ${n.summary ?? 'No summary'}`).join('; ') || "Recent news not available";
 
   const input: GenerateStockReportInput = {
     fundamentalData: fundamentalDataStr,
@@ -89,25 +77,38 @@ export async function generateAiStockReportAction(stockProfile: StockDisplayProf
     return await generateStockReport(input);
   } catch (error) {
     console.error("Error in generateAiStockReportAction:", error);
-    throw new Error("Failed to generate AI stock report.");
+    // throw new Error("Failed to generate AI stock report.");
+     return { // Return a structured error response
+      report: `Error generating report: ${error instanceof Error ? error.message : 'Unknown AI error'}`,
+      score: "Error",
+      confidence: 0,
+      disclaimer: "An error occurred during AI report generation.",
+    };
   }
 }
 
-export async function assessAiConfidenceAction(stockProfile: StockDisplayProfile, aiReportText: string): Promise<AssessConfidenceLevelOutput> {
-  // TODO: Update sentiment analysis and input formatting
-  let newsSentiment = "Neutral"; // Simplified for now
-  if (stockProfile.recentNews && stockProfile.recentNews.length > 0) {
-      const sentimentKeywords = stockProfile.recentNews.map(n => (n.sentiment || 'Neutral')).join(' ');
-      if (sentimentKeywords.includes('Positive')) newsSentiment = 'Positive';
-      else if (sentimentKeywords.includes('Negative')) newsSentiment = 'Negative';
-      else if (sentimentKeywords.includes('Neutral') && (sentimentKeywords.includes('Positive') || sentimentKeywords.includes('Negative'))) newsSentiment = 'Mixed';
+export async function assessAiConfidenceAction(stockProfile: StockDisplayProfile | null, aiReportText: string): Promise<AssessConfidenceLevelOutput> {
+   if (!stockProfile || !stockProfile.company) {
+    console.warn("assessAiConfidenceAction: stockProfile or company data is null. Returning default confidence.");
+    return {
+      confidenceLevel: 0,
+      reasoning: "Could not assess confidence: Essential stock data is missing.",
+    };
   }
 
+  let newsSentiment = "Neutral"; 
+  if (stockProfile.recentNews && stockProfile.recentNews.length > 0) {
+      const sentimentKeywords = stockProfile.recentNews.map(n => (n.sentiment || 'Neutral')).join(' ');
+      if (sentimentKeywords.includes('Positive') && !sentimentKeywords.includes('Negative')) newsSentiment = 'Positive';
+      else if (sentimentKeywords.includes('Negative') && !sentimentKeywords.includes('Positive')) newsSentiment = 'Negative';
+      else if (sentimentKeywords.includes('Positive') && sentimentKeywords.includes('Negative')) newsSentiment = 'Mixed';
+      else newsSentiment = 'Neutral'; // Default if only neutral or no clear signals
+  }
 
   const fundamentalDataStr = stockProfile.latestFinancialReport
-    ? `Report Date: ${stockProfile.latestFinancialReport.report_date}, EPS: ${stockProfile.latestFinancialReport.eps}`
-    : "Not available";
-  const technicalIndicatorsStr = stockProfile.technicalIndicators?.map(ti => `${ti.indicator_name}: ${ti.interpretation}`).join(', ') || "Not available";
+    ? `Report Date: ${stockProfile.latestFinancialReport.report_date}, EPS: ${stockProfile.latestFinancialReport.eps ?? 'N/A'}`
+    : "Fundamental data not available";
+  const technicalIndicatorsStr = stockProfile.technicalIndicators?.map(ti => `${ti.indicator_name}: ${ti.interpretation ?? 'N/A'}`).join(', ') || "Technical indicators not available";
 
   const input: AssessConfidenceLevelInput = {
     fundamentalData: fundamentalDataStr,
@@ -119,18 +120,27 @@ export async function assessAiConfidenceAction(stockProfile: StockDisplayProfile
     return await assessConfidenceLevel(input);
   } catch (error) {
     console.error("Error in assessAiConfidenceAction:", error);
-    throw new Error("Failed to assess AI confidence.");
+    // throw new Error("Failed to assess AI confidence.");
+    return { // Return a structured error response
+      confidenceLevel: 0,
+      reasoning: `Error assessing confidence: ${error instanceof Error ? error.message : 'Unknown AI error'}`,
+    };
   }
 }
 
-export async function generateAiRiskDisclaimerAction(stockName: string): Promise<GenerateRiskDisclaimerOutput> {
+export async function generateAiRiskDisclaimerAction(stockName: string | undefined): Promise<GenerateRiskDisclaimerOutput> {
   const input: GenerateRiskDisclaimerInput = {
-    stockName: stockName,
+    stockName: stockName || "the stock market", // Handle undefined stockName
   };
   try {
     return await generateRiskDisclaimer(input);
   } catch (error) {
     console.error("Error in generateAiRiskDisclaimerAction:", error);
-    throw new Error("Failed to generate AI risk disclaimer.");
+    // throw new Error("Failed to generate AI risk disclaimer.");
+    return { // Return a structured error response
+      disclaimer: `Error generating disclaimer: ${error instanceof Error ? error.message : 'Unknown AI error'}`,
+    };
   }
 }
+
+    

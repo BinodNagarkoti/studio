@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { UserRoundSearch, Loader2 } from "lucide-react";
-import type { BrokerInfo } from "@/types";
+import type { BrokerSelectItem } from "@/types"; // Changed from BrokerInfo
 import { useEffect, useState } from "react";
 import { fetchAllBrokersAction } from "@/lib/actions";
 import { useToast } from "@/hooks/use-toast";
@@ -18,12 +18,12 @@ const FormSchema = z.object({
 });
 
 interface BrokerSelectFormProps {
-  onBrokerSelect: (brokerId: string) => void;
+  onBrokerSelect: (brokerId: string) => void; // brokerId is the UUID from the 'brokers' table
   isLoading: boolean; // Loading state for when selected broker's stocks are being fetched
 }
 
 export function BrokerSelectForm({ onBrokerSelect, isLoading }: BrokerSelectFormProps) {
-  const [brokers, setBrokers] = useState<BrokerInfo[]>([]);
+  const [brokers, setBrokers] = useState<BrokerSelectItem[]>([]);
   const [isBrokerListLoading, setIsBrokerListLoading] = useState(true);
   const { toast } = useToast();
 
@@ -35,13 +35,17 @@ export function BrokerSelectForm({ onBrokerSelect, isLoading }: BrokerSelectForm
     const loadBrokers = async () => {
       setIsBrokerListLoading(true);
       try {
-        toast({ title: "Fetching Broker List...", description: "Loading available NEPSE brokers."});
-        const fetchedBrokers = await fetchAllBrokersAction();
+        // toast({ title: "Fetching Broker List...", description: "Loading available NEPSE brokers."});
+        const fetchedBrokers = await fetchAllBrokersAction(); // This should return BrokerSelectItem[]
         setBrokers(fetchedBrokers);
-        toast({ title: "Broker List Loaded!", description: `${fetchedBrokers.length} brokers available.`, variant: "default"});
+        if (fetchedBrokers.length > 0) {
+        //   toast({ title: "Broker List Loaded!", description: `${fetchedBrokers.length} brokers available.`, variant: "default"});
+        } else {
+        //   toast({ title: "No Brokers Found", description: "Could not find any brokers.", variant: "default" });
+        }
       } catch (error) {
         console.error("Failed to fetch brokers:", error);
-        toast({ title: "Error", description: "Could not load broker list.", variant: "destructive" });
+        toast({ title: "Error Loading Brokers", description: "Could not load broker list. Please try again later.", variant: "destructive" });
         setBrokers([]);
       } finally {
         setIsBrokerListLoading(false);
@@ -51,7 +55,7 @@ export function BrokerSelectForm({ onBrokerSelect, isLoading }: BrokerSelectForm
   }, [toast]);
 
   function onSubmit(data: z.infer<typeof FormSchema>) {
-    onBrokerSelect(data.brokerId);
+    onBrokerSelect(data.brokerId); // data.brokerId will be the UUID of the selected broker
   }
 
   return (
@@ -75,15 +79,15 @@ export function BrokerSelectForm({ onBrokerSelect, isLoading }: BrokerSelectForm
                 </FormControl>
                 <SelectContent>
                   {isBrokerListLoading ? (
-                    <SelectItem value="loading" disabled>Loading...</SelectItem>
+                    <SelectItem value="loading" disabled>Loading brokers...</SelectItem>
                   ) : brokers.length > 0 ? (
                     brokers.map((broker) => (
-                      <SelectItem key={broker.id} value={broker.id}>
-                        {broker.name}
+                      <SelectItem key={broker.id} value={broker.id}> {/* Use broker.id (UUID) as value */}
+                        {broker.name} ({broker.broker_code})
                       </SelectItem>
                     ))
                   ) : (
-                     <SelectItem value="no-brokers" disabled>No brokers available</SelectItem>
+                     <SelectItem value="no-brokers" disabled>No brokers available or failed to load</SelectItem>
                   )}
                 </SelectContent>
               </Select>
@@ -103,3 +107,5 @@ export function BrokerSelectForm({ onBrokerSelect, isLoading }: BrokerSelectForm
     </Form>
   );
 }
+
+    

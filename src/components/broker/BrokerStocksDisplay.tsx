@@ -1,20 +1,22 @@
 
 "use client";
 
-import type { BrokerInfo, ProcessedStockInfo } from '@/types';
+import type { BrokerSelectItem, ProcessedStockInfo } from '@/types'; // Use BrokerSelectItem
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableCaption } from "@/components/ui/table";
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ListChecks } from 'lucide-react';
 
 interface BrokerStocksDisplayProps {
-  broker?: BrokerInfo | null; // Selected broker details
+  broker?: BrokerSelectItem | null; // Selected broker details (BrokerSelectItem provides id, name, code)
   stocks: ProcessedStockInfo[];
 }
 
 export function BrokerStocksDisplay({ broker, stocks }: BrokerStocksDisplayProps) {
+  const brokerDisplayName = broker?.name || "Selected Broker"; // Use broker name if available
+
   if (!broker) {
-    return null; // Or a placeholder message if no broker is selected yet
+    return null; 
   }
 
   if (stocks.length === 0) {
@@ -24,7 +26,7 @@ export function BrokerStocksDisplay({ broker, stocks }: BrokerStocksDisplayProps
           <div className="flex items-center gap-3">
             <ListChecks className="h-6 w-6 text-primary" />
             <CardTitle className="text-xl font-semibold font-headline text-primary">
-              Processed Stocks for {broker.name}
+              Processed Stocks for {brokerDisplayName}
             </CardTitle>
           </div>
         </CardHeader>
@@ -38,11 +40,11 @@ export function BrokerStocksDisplay({ broker, stocks }: BrokerStocksDisplayProps
   const getTransactionTypeBadgeVariant = (type: ProcessedStockInfo['transactionType']) => {
     switch (type) {
       case 'Buy':
-        return 'default'; // Uses primary color, often blue or green by default
+        return 'default'; 
       case 'Sell':
-        return 'destructive'; // Uses destructive color, often red
+        return 'destructive'; 
       case 'Match':
-        return 'secondary'; // Uses secondary color, often gray
+        return 'secondary'; 
       default:
         return 'outline';
     }
@@ -55,13 +57,13 @@ export function BrokerStocksDisplay({ broker, stocks }: BrokerStocksDisplayProps
          <div className="flex items-center gap-3">
             <ListChecks className="h-6 w-6 text-primary" />
             <CardTitle className="text-xl font-semibold font-headline text-primary">
-              Processed Stocks for {broker.name}
+              Processed Stocks for {brokerDisplayName}
             </CardTitle>
           </div>
       </CardHeader>
       <CardContent>
         <Table>
-          <TableCaption>A list of stocks recently processed by {broker.name}.</TableCaption>
+          <TableCaption>A list of stocks recently processed by {brokerDisplayName}.</TableCaption>
           <TableHeader>
             <TableRow>
               <TableHead className="w-[120px]">Symbol</TableHead>
@@ -83,7 +85,7 @@ export function BrokerStocksDisplay({ broker, stocks }: BrokerStocksDisplayProps
                   </Badge>
                 </TableCell>
                 <TableCell className="text-right">{stock.volumeTraded.toLocaleString()}</TableCell>
-                <TableCell className="text-right">{stock.lastProcessedDate}</TableCell>
+                <TableCell className="text-right">{new Date(stock.lastProcessedDate).toLocaleDateString()}</TableCell>
               </TableRow>
             ))}
           </TableBody>
@@ -92,3 +94,5 @@ export function BrokerStocksDisplay({ broker, stocks }: BrokerStocksDisplayProps
     </Card>
   );
 }
+
+    

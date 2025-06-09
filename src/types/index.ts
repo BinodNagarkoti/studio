@@ -20,19 +20,23 @@ export interface Company extends BaseEntity {
   name: string;
   ticker_symbol: string;
   industry_sector?: string | null;
-  exchange?: string | null;
+  exchange_listed?: string | null; // Changed from 'exchange'
   incorporation_date?: string | null; // Date
   headquarters_location?: string | null;
-  website?: string | null;
+  website_url?: string | null; // Changed from 'website'
   description?: string | null;
   is_active?: boolean;
+  // Added from Supabase schema for companies:
+  industry?: string | null; // This might be redundant with industry_sector, review based on source
+  sector_name?: string | null; // This might be redundant with industry_sector, review based on source
 }
 
 export interface FinancialReport extends BaseEntity {
+  report_id: string; // Using report_id as the primary key identifier for this type
   company_id: string; // Foreign Key to Companies
   report_date: string; // Date
-  period_type: 'quarterly' | 'annual';
-  currency: string; // e.g., 'NPR'
+  fiscal_period: 'quarterly' | 'annual'; // Changed from period_type
+  currency?: string; // e.g., 'NPR' - Added as it's good practice, though not in all Supabase tables explicitly
 
   // Income Statement
   revenue?: number | null;
@@ -48,7 +52,7 @@ export interface FinancialReport extends BaseEntity {
   shareholders_equity?: number | null;
   current_assets?: number | null;
   current_liabilities?: number | null;
-  cash_and_cash_equivalents?: number | null;
+  cash_and_equivalents?: number | null; // Changed from cash_and_cash_equivalents
   long_term_debt?: number | null;
 
   // Cash Flow
@@ -56,11 +60,11 @@ export interface FinancialReport extends BaseEntity {
   investing_cash_flow?: number | null;
   financing_cash_flow?: number | null;
   free_cash_flow?: number | null;
-
-  // Shares
-  outstanding_shares?: number | null;
+  
+  // Shares - outstanding_shares was removed from FinancialReport as it's often in ownership/company table
   
   source_url?: string | null;
+  fiscal_year?: number; // Added from Supabase schema
 }
 
 export interface DailyMarketData extends BaseEntity {
@@ -71,19 +75,21 @@ export interface DailyMarketData extends BaseEntity {
   low_price?: number | null;
   close_price?: number | null;
   adjusted_close_price?: number | null;
-  volume_traded?: number | null;
+  volume?: number | null; // Changed from volume_traded
   turnover?: number | null;
-  market_capitalization?: number | null;
+  market_cap?: number | null; // Changed from market_capitalization
   previous_close_price?: number | null;
   price_change?: number | null;
-  price_change_percent?: number | null;
+  percent_change?: number | null; // Changed from price_change_percent
   fifty_two_week_high?: number | null;
   fifty_two_week_low?: number | null;
 }
 
 export interface CompanyRatio extends BaseEntity {
+  ratio_id: string; // Using ratio_id as primary key for this type
   company_id: string; // Foreign Key to Companies
-  report_date: string; // Date, aligning with a financial report or market data point
+  as_of_date: string; // Renamed from report_date for clarity with Supabase schema
+  report_id?: string | null; // Link to a specific financial report if applicable
   
   // Valuation Ratios
   pe_ratio?: number | null;
@@ -106,121 +112,59 @@ export interface CompanyRatio extends BaseEntity {
 }
 
 export interface CompanyTechnicalIndicator extends BaseEntity {
+  // id is from BaseEntity
   company_id: string; // Foreign Key to Companies
-  indicator_date: string; // Date
+  trade_date: string; // Renamed from indicator_date to match Supabase 'daily_technical_indicators'
   indicator_name: string; // e.g., 'SMA_50', 'RSI_14'
   value?: number | null;
-  interpretation?: string | null; // e.g., 'Bullish', 'Bearish', 'Neutral'
-  // Parameters used for calculation can be stored as JSON if needed
-  // parameters_json?: Record<string, any> | null;
+  interpretation?: string | null; // e.g., 'Bullish', 'Bearish', 'Neutral' - To be derived or added.
+  parameters?: Record<string, any> | null; // From Supabase daily_technical_indicators.parameters (JSON)
 }
 
 export interface CompanyNewsEvent extends BaseEntity {
+  // id from BaseEntity
   company_id?: string | null; // Optional if news is general
   event_date: string; // Date
-  title: string;
-  source?: string | null;
+  headline: string; // Renamed from title
+  source_name?: string | null; // Renamed from source
   summary?: string | null;
   url?: string | null;
-  category?: 'Earnings' | 'Merger' | 'AnalystUpdate' | 'Regulatory' | 'InsiderTransaction' | 'Other';
+  event_type?: 'Earnings' | 'Merger' | 'AnalystUpdate' | 'Regulatory' | 'InsiderTransaction' | 'AGM/SGM' | 'Dividend' | 'RightShare' | 'Other'; // Expanded from category
+  sentiment_score?: number | null; // Added from Supabase schema
+  content?: string | null; // Added from Supabase schema
+  publish_datetime?: string | null; // Added from Supabase schema
+  details_json?: Record<string, any> | null; // Added from Supabase schema
+  // Derived sentiment
   sentiment?: 'Positive' | 'Negative' | 'Neutral' | null;
 }
 
-export interface CompanyOwnership extends BaseEntity {
-  company_id: string; // Foreign Key to Companies
-  report_date: string; // Date
-  promoter_holdings_percent?: number | null;
-  public_shareholding_percent?: number | null;
-  institutional_holdings_percent?: number | null;
-  // board_composition_json?: Record<string, any> | null; // For storing board details as JSON
-}
-
-export interface CompanyRiskFactor extends BaseEntity {
-  company_id: string; // Foreign Key to Companies
-  report_date: string; // Date
-  beta?: number | null;
-  credit_rating?: string | null;
-  // litigation_history_summary?: string | null;
-}
-
-export interface DividendHistory extends BaseEntity {
-  company_id: string; // Foreign Key to Companies
-  ex_dividend_date: string; // Date
-  record_date?: string | null; // Date
-  payment_date?: string | null; // Date
-  dividend_type: 'Cash' | 'Stock';
-  dividend_amount?: number | null; // Amount per share for cash, or percentage for stock
-  currency?: string | null;
-  fiscal_year?: string | null;
-  announcement_date?: string | null; // Date
-}
-
-export interface StockSplit extends BaseEntity {
-  company_id: string; // Foreign Key to Companies
-  split_date: string; // Date
-  split_ratio_from: number;
-  split_ratio_to: number;
-  announcement_date?: string | null; // Date
-}
-
-export interface NepseIndex extends BaseEntity {
-  index_name: string; // e.g., 'NEPSE Index', 'Sensitive Index'
-  short_code?: string | null; // e.g., 'NEPSE', 'SEN'
-  description?: string | null;
-}
-
-export interface DailyIndexValue extends BaseEntity {
-  index_id: string; // Foreign Key to NepseIndices
-  trade_date: string; // Date
-  current_value: number;
-  point_change?: number | null;
-  percent_change?: number | null;
-  open_value?: number | null;
-  high_value?: number | null;
-  low_value?: number | null;
-  previous_close_value?: number | null;
-}
-
-export interface MarketSummary extends BaseEntity {
-  summary_date: string; // Date
-  total_turnover?: number | null;
-  total_traded_shares?: number | null;
-  total_transactions?: number | null;
-  total_market_cap?: number | null;
-  total_float_market_cap?: number | null;
-  advanced_count?: number | null; // Number of scrips advanced
-  declined_count?: number | null; // Number of scrips declined
-  unchanged_count?: number | null; // Number of scrips unchanged
-}
-
-export interface SectorSummary extends BaseEntity {
-  summary_date: string; // Date
-  sector_name: string;
-  turnover?: number | null;
-  // Add other sector-specific summary points if available
-}
-
 export interface Broker extends BaseEntity {
+  // id from BaseEntity
   broker_code: string; // e.g., '58'
   name: string;
-  license_number?: string | null;
   address?: string | null;
   contact_info?: string | null;
-  website?: string | null;
   is_active?: boolean;
+  // Fields like license_number, website were not in the brokers table, kept as optional
+  license_number?: string | null;
+  website?: string | null;
 }
 
 export interface FloorSheetTransaction extends BaseEntity {
-  transaction_id_nepse: string; // Unique ID from NEPSE if available, or generated
+  // id from BaseEntity
+  nepse_transaction_id?: number | null; // Renamed from transaction_id_nepse
   trade_date: string; // Date
-  contract_number: string;
-  stock_symbol: string; // Consider if this should be company_id + lookup, or symbol directly
-  buyer_broker_code: string;
-  seller_broker_code: string;
+  contract_number?: string | null;
+  stock_symbol: string; 
+  company_id: string; // Added foreign key
+  buyer_broker_id?: string | null; // Foreign key to brokers table id
+  seller_broker_id?: string | null; // Foreign key to brokers table id
   quantity: number;
   rate: number;
   amount: number;
+  transaction_time?: string | null; // Time
 }
+
 
 // --- UI & Component Specific Types ---
 export interface SectionCardProps {
@@ -237,67 +181,86 @@ export interface ChartDataPoint {
   [key: string]: any; // For additional properties in chart data
 }
 
-// --- Existing Types to be reviewed/refactored based on new data model ---
-// This NepseStockSymbol will likely be replaced by fetching companies dynamically
-export type NepseStockSymbol = "NABIL" | "HDL" | "UPPER" | "API" | "CIT"; 
+// This NepseStockSymbol will likely be replaced by fetching companies dynamically.
+// For now, it's a string to accept dynamic symbols from the DB.
+export type NepseStockSymbol = string; 
 
-
-// This StockDetails will need to be a composite of the new types.
-// It represents the combined data profile for a single stock for display.
+// This represents the combined data profile for a single stock for display.
 export interface StockDisplayProfile {
   company: Company;
   latestMarketData?: DailyMarketData | null;
-  latestFinancialReport?: FinancialReport | null; // Or a summary of multiple reports
+  latestFinancialReport?: FinancialReport | null; 
   recentNews?: CompanyNewsEvent[];
-  ratios?: CompanyRatio | null; // Latest ratios
-  technicalIndicators?: CompanyTechnicalIndicator[]; // Set of key indicators
-  // Add other relevant aggregated data as needed
+  ratios?: CompanyRatio | null; 
+  technicalIndicators?: CompanyTechnicalIndicator[];
+  // Future additions:
+  // dividendHistory?: DividendHistory[];
+  // stockSplits?: StockSplit[];
+  // ownership?: CompanyOwnership;
 }
 
-// Old types for reference or potential refactoring:
-// export interface FundamentalDataItem {
-//   metric: string;
-//   value: string | number;
-//   description?: string;
-// }
-// export interface TechnicalIndicator {
-//   name: string;
-//   value: string | number;
-//   interpretation?: string;
-//   chartData?: ChartDataPoint[];
-//   chartColor?: string;
-// }
-// export interface NewsItem {
-//   id: string;
-//   title: string;
-//   source: string;
-//   date: string;
-//   summary: string;
-//   url: string;
-// }
-// export interface StockDetails { // This will be replaced by StockDisplayProfile or similar
-//   symbol: string;
-//   name: string;
-//   lastPrice?: number;
-//   change?: number;
-//   changePercent?: number;
-//   marketCap?: string;
-//   volume?: string;
-//   fundamentalData: FundamentalDataItem[];
-//   technicalIndicators: TechnicalIndicator[];
-//   news: NewsItem[];
-// }
 
 export interface AIReportData extends GenerateStockReportOutput {}
 export interface ConfidenceData extends AssessConfidenceLevelOutput {}
 export interface DisclaimerData extends GenerateRiskDisclaimerOutput {}
 
 
-// For Broker Insights (still relevant, uses the Broker type above)
+// For Broker Insights
 export interface ProcessedStockInfo {
-  symbol: NepseStockSymbol; // Or use string if symbols are dynamic
+  symbol: string; // Changed from NepseStockSymbol
   companyName: string;
   lastProcessedDate: string; // YYYY-MM-DD
   volumeTraded: number;
   transactionType: 'Buy' | 'Sell' | 'Match';
 }
+
+// For company selection in forms
+export interface CompanySelectItem {
+  id: string;
+  ticker_symbol: string;
+  name: string;
+}
+
+// For broker selection in forms
+export interface BrokerSelectItem {
+  id: string; // This is the broker table's UUID primary key
+  broker_code: string;
+  name: string;
+}
+
+// UI types for old StockDetails to be refactored/removed.
+// These are kept temporarily to minimize immediate breakage if any deep references exist.
+export interface FundamentalDataItem {
+  metric: string;
+  value: string | number;
+  description?: string;
+}
+export interface TechnicalIndicator { // This is the old one, distinct from CompanyTechnicalIndicator
+  name: string;
+  value: string | number;
+  interpretation?: string;
+  chartData?: ChartDataPoint[];
+  chartColor?: string;
+}
+export interface NewsItem { // This is the old one, distinct from CompanyNewsEvent
+  id: string;
+  title: string;
+  source: string;
+  date: string;
+  summary: string;
+  url: string;
+}
+export interface StockDetails { // This will be replaced by StockDisplayProfile or similar
+  symbol: string;
+  name: string;
+  lastPrice?: number;
+  change?: number;
+  changePercent?: number;
+  marketCap?: string;
+  volume?: string;
+  fundamentalData: FundamentalDataItem[];
+  technicalIndicators: TechnicalIndicator[]; // Uses old TechnicalIndicator type
+  news: NewsItem[]; // Uses old NewsItem type
+}
+
+    
