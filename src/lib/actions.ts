@@ -8,10 +8,10 @@ import type {
   BrokerSelectItem,
   ProcessedStockInfo,
   Company,
-  CompanySelectItem 
+  CompanySelectItem
 } from '@/types';
 import {
-  getStockDisplayProfile, 
+  getStockDisplayProfile,
   getAllBrokers as getAllBrokersService, // Renamed for clarity
   getStocksByBroker as getStocksByBrokerService, // Renamed for clarity
   getAllCompaniesForSearch as getAllCompaniesForSearchService // New service function
@@ -19,6 +19,7 @@ import {
 import { generateStockReport, type GenerateStockReportInput, type GenerateStockReportOutput } from '@/ai/flows/generate-stock-report';
 import { assessConfidenceLevel, type AssessConfidenceLevelInput, type AssessConfidenceLevelOutput } from '@/ai/flows/assess-confidence-level';
 import { generateRiskDisclaimer, type GenerateRiskDisclaimerInput, type GenerateRiskDisclaimerOutput } from '@/ai/flows/generate-risk-disclaimer';
+import { supabase } from '@/lib/supabaseClient';
 
 
 // --- Data Fetching Actions (Delegating to nepse-data-service) ---
@@ -61,8 +62,8 @@ export async function generateAiStockReportAction(stockProfile: StockDisplayProf
       disclaimer: "Data unavailable, AI analysis cannot be performed.",
     };
   }
-  
-  const fundamentalDataStr = stockProfile.latestFinancialReport 
+
+  const fundamentalDataStr = stockProfile.latestFinancialReport
     ? `Report Date: ${stockProfile.latestFinancialReport.report_date}, Revenue: ${stockProfile.latestFinancialReport.revenue ?? 'N/A'}, Net Income: ${stockProfile.latestFinancialReport.net_income ?? 'N/A'}, EPS: ${stockProfile.latestFinancialReport.eps ?? 'N/A'}`
     : "Fundamental data not available";
   const technicalIndicatorsStr = stockProfile.technicalIndicators?.map(ti => `${ti.indicator_name}: ${ti.value ?? 'N/A'} (${ti.interpretation ?? 'N/A'})`).join(', ') || "Technical indicators not available";
@@ -96,9 +97,9 @@ export async function assessAiConfidenceAction(stockProfile: StockDisplayProfile
     };
   }
 
-  let newsSentiment = "Neutral"; 
+  let newsSentiment = "Neutral";
   if (stockProfile.recentNews && stockProfile.recentNews.length > 0) {
-      const sentimentKeywords = stockProfile.recentNews.map(n => (n.sentiment || 'Neutral')).join(' ');
+      const sentimentKeywords = stockProfile.recentNews.map(n => (n.sentiment_score !== null && n.sentiment_score !== undefined ? (n.sentiment_score > 0 ? 'Positive' : n.sentiment_score < 0 ? 'Negative' : 'Neutral') : 'Neutral')).join(' ');
       if (sentimentKeywords.includes('Positive') && !sentimentKeywords.includes('Negative')) newsSentiment = 'Positive';
       else if (sentimentKeywords.includes('Negative') && !sentimentKeywords.includes('Positive')) newsSentiment = 'Negative';
       else if (sentimentKeywords.includes('Positive') && sentimentKeywords.includes('Negative')) newsSentiment = 'Mixed';
@@ -143,4 +144,60 @@ export async function generateAiRiskDisclaimerAction(stockName: string | undefin
   }
 }
 
-    
+// --- Scrape Status Action ---
+export interface ScrapeStatus {
+  isUpToDate: boolean;
+  lastChecked: string; // ISO string of when this check was performed
+  message: string;
+}
+
+export async function getTodayPriceScrapeStatusAction(): Promise<ScrapeStatus> {
+  try {
+    const today = new Date();
+    // IMPORTANT: This creates a date string based on the server's local timezone.
+    // For consistency with NEPSE (NPT), you might need to adjust this.
+    // For now, we use the server's local concept of "today".
+    const year = today.getFullYear();
+    const month = (today.getMonth() + 1).toString().padStart(2, '0');
+    const day = today.getDate().toString().padStart(2, '0');
+    const todayDateString = `${year}-${month}-${day}`;
+
+    // Check if there's any data for today's trade_date
+    const { error, count } = await supabase
+      .from('daily_market_data')
+      .select('trade_date', { count: 'exact', head: true }) // only need count, head:true is efficient
+      .eq('trade_date', todayDateString);
+
+    const checkTimestamp = new Date().toLocaleString(); // For user-friendly display
+
+    if (error) {
+      console.error("Error fetching scrape status:", error.message);
+      return {
+        isUpToDate: false,
+        lastChecked: new Date().toISOString(),
+        message: `Error checking status: ${error.message}. (Checked: ${checkTimestamp})`,
+      };
+    }
+
+    if (count && count > 0) {
+      return {
+        isUpToDate: true,
+        lastChecked: new Date().toISOString(),
+        message: `Data for ${todayDateString} is present. (Checked: ${checkTimestamp})`,
+      };
+    } else {
+      return {
+        isUpToDate: false,
+        lastChecked: new Date().toISOString(),
+        message: `No data found for ${todayDateString}. Needs scraping. (Checked: ${checkTimestamp})`,
+      };
+    }
+  } catch (err: any) {
+    console.error("Unexpected error in getTodayPriceScrapeStatusAction:", err.message);
+    return {
+      isUpToDate: false,
+      lastChecked: new Date().toISOString(),
+      message: `Failed to determine scrape status: ${err.message}. (Checked: ${new Date().toLocaleString()})`,
+    };
+  }
+}
