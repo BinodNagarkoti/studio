@@ -8,7 +8,7 @@ import { StockDataDisplay } from '@/components/stock/StockDataDisplay';
 import { AppHeader } from '@/components/layout/Header';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertCircle, BarChart3, Briefcase, LineChart, UserRoundSearch } from "lucide-react";
+import { AlertCircle, BarChart3, Briefcase, LineChart, UserRoundSearch, Info } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BrokerSelectForm } from '@/components/broker/BrokerSelectForm';
 import { BrokerStocksDisplay } from '@/components/broker/BrokerStocksDisplay';
@@ -56,7 +56,7 @@ export default function HomePage() {
       toast({ title: "Fetching Stock Data...", description: `Looking up details for ${symbol}.`});
       const details = await fetchStockDetailsAction(symbol);
       if (!details) {
-        throw new Error(`Stock symbol "${symbol}" not found or an error occurred.`);
+        throw new Error(`Stock symbol "${symbol}" not found or an error occurred while fetching data.`);
       }
       setStockDetails(details);
       toast({ title: "Stock Data Fetched!", description: `Successfully retrieved data for ${details.name}.`, variant: "default" });
@@ -122,15 +122,13 @@ export default function HomePage() {
   };
   
   useEffect(() => {
-    // Fetch all brokers once when the component mounts or when broker tab becomes active
     const loadAllBrokers = async () => {
-        if (allBrokers.length === 0) { // Only fetch if not already fetched
+        if (allBrokers.length === 0) { 
             try {
                 const fetchedBrokers = await fetchAllBrokersAction();
                 setAllBrokers(fetchedBrokers);
             } catch (error) {
                 console.error("Failed to fetch initial list of brokers for page:", error);
-                // Error toast for broker list loading is handled in BrokerSelectForm
             }
         }
     };
@@ -151,6 +149,14 @@ export default function HomePage() {
               Comprehensive stock data, AI-driven analysis, and broker activity for the Nepal Stock Exchange.
             </p>
           </div>
+
+          <Alert variant="default" className="shadow-md bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-900/30 dark:border-blue-700 dark:text-blue-300">
+            <Info className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+            <AlertTitle className="font-semibold">Demonstration Mode</AlertTitle>
+            <AlertDescription>
+              Currently, all stock and broker data is mocked for demonstration purposes.
+            </AlertDescription>
+          </Alert>
           
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="grid w-full grid-cols-2">
@@ -223,8 +229,10 @@ export default function HomePage() {
         </div>
       </main>
       <footer className="py-6 text-center text-sm text-muted-foreground border-t">
-        © {new Date().getFullYear()} ShareScope AI. All rights reserved. Data for informational purposes only.
+        © {new Date().getFullYear()} ShareScope AI. All rights reserved. Financial data is for informational purposes only.
       </footer>
     </div>
   );
 }
+
+    

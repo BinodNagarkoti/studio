@@ -7,7 +7,10 @@ import { generateStockReport, type GenerateStockReportInput, type GenerateStockR
 import { assessConfidenceLevel, type AssessConfidenceLevelInput, type AssessConfidenceLevelOutput } from '@/ai/flows/assess-confidence-level';
 import { generateRiskDisclaimer, type GenerateRiskDisclaimerInput, type GenerateRiskDisclaimerOutput } from '@/ai/flows/generate-risk-disclaimer';
 
-// Mock NEPSE stock data
+// --- Mock Data Section ---
+// IMPORTANT: The data below is mocked for demonstration purposes.
+// Replace with actual NEPSE API calls in the action functions.
+
 const mockStockDatabase: Record<NepseStockSymbol, StockDetails> = {
   "NABIL": {
     symbol: "NABIL",
@@ -163,9 +166,45 @@ function generateMockVolumeData(minVol: number = 10000, maxVol: number = 100000,
   return data;
 }
 
+const mockBrokerProcessedStocksData: Record<string, ProcessedStockInfo[]> = {
+  "B58": [ 
+    { symbol: "NABIL", companyName: "Nabil Bank Limited", lastProcessedDate: "2024-07-29", volumeTraded: 1500, transactionType: "Buy" },
+    { symbol: "HDL", companyName: "Himalayan Distillery Limited", lastProcessedDate: "2024-07-28", volumeTraded: 750, transactionType: "Sell" },
+    { symbol: "UPPER", companyName: "Upper Tamakoshi Hydropower Ltd.", lastProcessedDate: "2024-07-29", volumeTraded: 2200, transactionType: "Buy" },
+  ],
+  "B45": [ 
+    { symbol: "API", companyName: "Api Power Company Ltd.", lastProcessedDate: "2024-07-27", volumeTraded: 3000, transactionType: "Match" },
+    { symbol: "CIT", companyName: "Citizen Investment Trust", lastProcessedDate: "2024-07-29", volumeTraded: 500, transactionType: "Buy" },
+    { symbol: "NABIL", companyName: "Nabil Bank Limited", lastProcessedDate: "2024-07-26", volumeTraded: 1200, transactionType: "Sell" },
+  ],
+  "B10": [ 
+    { symbol: "HDL", companyName: "Himalayan Distillery Limited", lastProcessedDate: "2024-07-29", volumeTraded: 900, transactionType: "Buy" },
+    { symbol: "UPPER", companyName: "Upper Tamakoshi Hydropower Ltd.", lastProcessedDate: "2024-07-25", volumeTraded: 1800, transactionType: "Sell" },
+  ],
+};
+// --- End of Mock Data Section ---
+
 
 export async function fetchStockDetailsAction(symbol: NepseStockSymbol): Promise<StockDetails | null> {
+  // Simulate API delay
   await new Promise(resolve => setTimeout(resolve, 1000));
+
+  // TODO: Replace this with a real API call to NEPSE or a data provider
+  // Example:
+  // try {
+  //   const response = await fetch(`https://your-nepse-api-endpoint/stock/${symbol}`);
+  //   if (!response.ok) {
+  //     throw new Error(`API error: ${response.status}`);
+  //   }
+  //   const data = await response.json();
+  //   // Transform 'data' to match the 'StockDetails' type
+  //   return transformedData; 
+  // } catch (error) {
+  //   console.error("Failed to fetch real stock details:", error);
+  //   return null; // Or throw error to be caught by UI
+  // }
+
+  // Using mock data for now
   const stock = mockStockDatabase[symbol.toUpperCase() as NepseStockSymbol];
   if (stock) {
     return stock;
@@ -245,46 +284,46 @@ export async function generateAiRiskDisclaimerAction(stockName: string): Promise
   }
 }
 
-// Mock Broker Data
-const mockBrokerProcessedStocksData: Record<string, ProcessedStockInfo[]> = {
-  "B58": [ // Imperial Securities Co. Pvt. Ltd.
-    { symbol: "NABIL", companyName: "Nabil Bank Limited", lastProcessedDate: "2024-07-29", volumeTraded: 1500, transactionType: "Buy" },
-    { symbol: "HDL", companyName: "Himalayan Distillery Limited", lastProcessedDate: "2024-07-28", volumeTraded: 750, transactionType: "Sell" },
-    { symbol: "UPPER", companyName: "Upper Tamakoshi Hydropower Ltd.", lastProcessedDate: "2024-07-29", volumeTraded: 2200, transactionType: "Buy" },
-  ],
-  "B45": [ // Naasa Securities Co. Ltd.
-    { symbol: "API", companyName: "Api Power Company Ltd.", lastProcessedDate: "2024-07-27", volumeTraded: 3000, transactionType: "Match" },
-    { symbol: "CIT", companyName: "Citizen Investment Trust", lastProcessedDate: "2024-07-29", volumeTraded: 500, transactionType: "Buy" },
-    { symbol: "NABIL", companyName: "Nabil Bank Limited", lastProcessedDate: "2024-07-26", volumeTraded: 1200, transactionType: "Sell" },
-  ],
-  "B10": [ // Pragyan Securities Pvt. Ltd.
-    { symbol: "HDL", companyName: "Himalayan Distillery Limited", lastProcessedDate: "2024-07-29", volumeTraded: 900, transactionType: "Buy" },
-    { symbol: "UPPER", companyName: "Upper Tamakoshi Hydropower Ltd.", lastProcessedDate: "2024-07-25", volumeTraded: 1800, transactionType: "Sell" },
-  ],
-  // Add more mock data for other brokers if needed
-};
 
-// Action to fetch all brokers
 export async function fetchAllBrokersAction(): Promise<BrokerInfo[]> {
-  await new Promise(resolve => setTimeout(resolve, 500)); // Simulate API delay
+  await new Promise(resolve => setTimeout(resolve, 500)); 
+  
+  // TODO: Replace this with a real API call if broker list is dynamic
+  // For now, returning a static list from constants.
   return ALL_BROKERS;
 }
 
-// Action to fetch stocks processed by a specific broker
+
 export async function fetchStocksByBrokerAction(brokerId: string): Promise<ProcessedStockInfo[]> {
-  await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API delay
+  await new Promise(resolve => setTimeout(resolve, 1000)); 
+
+  // TODO: Replace this with a real API call to fetch stocks for a broker
+  // Example:
+  // try {
+  //   const response = await fetch(`https://your-nepse-api-endpoint/broker/${brokerId}/stocks`);
+  //   if (!response.ok) {
+  //     throw new Error(`API error: ${response.status}`);
+  //   }
+  //   const data = await response.json();
+  //   // Transform 'data' to match the 'ProcessedStockInfo[]' type
+  //   return transformedData;
+  // } catch (error) {
+  //   console.error("Failed to fetch real broker stocks:", error);
+  //   return []; // Or throw error
+  // }
+  
+  // Using mock data for now
   const stocks = mockBrokerProcessedStocksData[brokerId];
   
-  // Simulate some randomness or dynamic data generation
   if (stocks) {
     const transactionTypes: ('Buy' | 'Sell' | 'Match')[] = ['Buy', 'Sell', 'Match'];
     return stocks.map(stock => ({
       ...stock,
-      // Randomly change transaction type for demo
       transactionType: transactionTypes[Math.floor(Math.random() * transactionTypes.length)],
-      // Randomly adjust volume slightly
       volumeTraded: stock.volumeTraded + Math.floor((Math.random() - 0.5) * 200) 
     })).sort((a,b) => new Date(b.lastProcessedDate).getTime() - new Date(a.lastProcessedDate).getTime());
   }
-  return []; // Return empty array if broker not found or no stocks
+  return []; 
 }
+
+    
