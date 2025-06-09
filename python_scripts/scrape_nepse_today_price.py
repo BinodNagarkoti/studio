@@ -15,6 +15,7 @@ headers = {
 def parse_nepse_today_price(html_content):
     soup = BeautifulSoup(html_content, 'html.parser')
     scraped_data = []
+    table_found_flag = False # Flag to track if a table structure was found
 
     # Try to find the <app-today-price> element first
     today_price_element = soup.find('app-today-price')
@@ -22,23 +23,35 @@ def parse_nepse_today_price(html_content):
     table_rows = []
     if today_price_element:
         # More specific search within app-today-price
-        # Common patterns: table directly inside, or inside a table-responsive div
         table_in_app = today_price_element.find('table')
-        if table_in_app:
-            table_rows = table_in_app.find('tbody').find_all('tr') if table_in_app.find('tbody') else []
-    
-    # Fallback if <app-today-price> or table within it is not found by specific selectors
-    if not table_rows:
+        if table_in_app and table_in_app.find('tbody'):
+            table_rows = table_in_app.find('tbody').find_all('tr')
+            if table_rows: # Check if rows were actually found
+                table_found_flag = True
+            elif table_in_app: # Table tag found, but no tbody or no rows
+                 table_found_flag = True # Consider table structure found even if empty for now
+
+    # Fallback if <app-today-price> or table within it is not found or empty
+    if not table_found_flag:
         table_responsive_div = soup.find('div', class_='table-responsive')
         if table_responsive_div:
             table = table_responsive_div.find('table')
             if table and table.find('tbody'):
                 table_rows = table.find('tbody').find_all('tr')
+                if table_rows:
+                    table_found_flag = True
+                elif table:
+                    table_found_flag = True
 
-    if not table_rows: # Final fallback for any table on the page
+
+    if not table_found_flag: # Final fallback for any table on the page
         generic_table = soup.find('table')
         if generic_table and generic_table.find('tbody'):
             table_rows = generic_table.find('tbody').find_all('tr')
+            if table_rows:
+                table_found_flag = True
+            elif generic_table:
+                table_found_flag = True
             
     for row in table_rows:
         columns = row.find_all('td')
@@ -64,38 +77,44 @@ def parse_nepse_today_price(html_content):
                     "s_n": s_n,
                     "companySymbol": company_symbol,
                     "ltp": ltp,
-                    "changePercent": change_percent_text, # From column 3 ('% Change')
+                    "changePercent": change_percent_text, 
                     "openPrice": open_price,
                     "highPrice": high_price,
                     "lowPrice": low_price,
                     "qtyTraded": qty_traded,
                     "turnover": turnover,
                     "prevClosing": prev_closing,
-                    "differenceRs": difference_rs, # From column 10 if exists
+                    "differenceRs": difference_rs, 
                 })
-    return scraped_data
+    
+    if not scraped_data:
+        if not table_found_flag:
+            # If the table structure itself was not identified by any selector
+            # This is a more critical error than an empty table.
+            error_output = {
+                "error": "Python script: Could not find the data table structure on the page.",
+                "details": "HTML structure might have significantly changed, or the page content is unexpected."
+            }
+            print(json.dumps(error_output), file=sys.stderr)
+            sys.exit(1) # Exit with an error code
+        else:
+            # Table structure was found, but it yielded no processable data rows (e.g., table was empty or rows didn't meet criteria)
+            # Output empty list to stdout; Node.js will interpret this as "no data to scrape"
+            print(json.dumps([]))
+    else:
+        print(json.dumps(scraped_data))
+
 
 if __name__ == '__main__':
     try:
-        # Note: For SSL issues like UNABLE_TO_VERIFY_LEAF_SIGNATURE in Python requests,
-        # you might need to handle it (e.g., for dev: verify=False, but this is insecure).
-        # Or ensure your Python environment's certificate store is up-to-date.
         response = requests.get(NEPSE_TODAY_PRICE_URL, headers=headers, timeout=20)
-        response.raise_for_status() # Raises an HTTPError for bad responses (4XX or 5XX)
+        response.raise_for_status() 
         
-        parsed_data = parse_nepse_today_price(response.text)
-        
-        if not parsed_data:
-            # Output an error message to stderr if no data was parsed, but still exit cleanly for Node.js
-            # print(json.dumps({"error": "No data parsed from the page. HTML structure might have changed."}), file=sys.stderr)
-            # For simplicity, if no data, output empty list to stdout, Node.js can check for empty
-            print(json.dumps([]))
-        else:
-            print(json.dumps(parsed_data))
+        parse_nepse_today_price(response.text) # Function now handles its own printing or exit
             
     except requests.exceptions.SSLError as e:
         error_output = {
-            "error": "SSL Certificate VerificationFailed in Python script.",
+            "error": "Python script: SSL Certificate Verification Failed.",
             "details": str(e),
             "message": "The Python script encountered an SSL error. Your Python environment might be missing updated CA certificates, or you might be behind a proxy. For development, you can try `requests.get(url, verify=False)` but this is insecure and not recommended for production."
         }
@@ -103,15 +122,16 @@ if __name__ == '__main__':
         sys.exit(1)
     except requests.exceptions.RequestException as e:
         error_output = {
-            "error": "Failed to fetch NEPSE page in Python script.",
+            "error": "Python script: Failed to fetch NEPSE page.",
             "details": str(e)
         }
         print(json.dumps(error_output), file=sys.stderr)
         sys.exit(1)
     except Exception as e:
         error_output = {
-            "error": "An unexpected error occurred in the Python script.",
+            "error": "Python script: An unexpected error occurred during parsing or execution.",
             "details": str(e)
         }
         print(json.dumps(error_output), file=sys.stderr)
         sys.exit(1)
+
