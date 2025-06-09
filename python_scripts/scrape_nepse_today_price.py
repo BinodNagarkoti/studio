@@ -107,16 +107,23 @@ def parse_nepse_today_price(html_content):
 
 if __name__ == '__main__':
     try:
-        response = requests.get(NEPSE_TODAY_PRICE_URL, headers=headers, timeout=20)
+        # DEVELOPMENT WORKAROUND: verify=False bypasses SSL certificate verification.
+        # This is INSECURE and should NOT be used in production.
+        # The proper fix is to ensure your Python environment has up-to-date CA certificates
+        # or is correctly configured for any network proxies.
+        print("Python script: Attempting to fetch NEPSE page with SSL verification disabled (verify=False). This is for development only.", file=sys.stderr)
+        response = requests.get(NEPSE_TODAY_PRICE_URL, headers=headers, timeout=20, verify=False)
         response.raise_for_status() 
         
         parse_nepse_today_price(response.text) # Function now handles its own printing or exit
             
     except requests.exceptions.SSLError as e:
+        # This block might still be hit if there are other SSL-related issues not covered by verify=False,
+        # or if verify=False was not used.
         error_output = {
-            "error": "Python script: SSL Certificate Verification Failed.",
+            "error": "Python script: SSL Certificate Verification Failed (even if verify=False was attempted).",
             "details": str(e),
-            "message": "The Python script encountered an SSL error. Your Python environment might be missing updated CA certificates, or you might be behind a proxy. For development, you can try `requests.get(url, verify=False)` but this is insecure and not recommended for production."
+            "message": "The Python script encountered an SSL error. Your Python environment might be missing updated CA certificates, or you might be behind a proxy. If verify=False was used, the issue might be more complex."
         }
         print(json.dumps(error_output), file=sys.stderr)
         sys.exit(1)
