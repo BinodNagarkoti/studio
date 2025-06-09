@@ -1,3 +1,4 @@
+
 // Summarizes stock data using fundamental data, technical indicators, and news.
 
 'use server';
@@ -29,17 +30,17 @@ const summarizeStockDataPrompt = ai.definePrompt({
   input: {schema: StockDataSummaryInputSchema},
   output: {schema: StockDataSummaryOutputSchema},
   prompt: `You are an AI assistant that summarizes stock data.
+Given the fundamental data, technical indicators, and news of a stock, provide:
+1.  A concise summary of the key takeaways.
+2.  A confidence level (a number between 0 and 1) for your summary.
+3.  An overall grade for the stock (e.g., A, B, C, D, F).
+4.  A standard risk disclaimer relevant to stock market investments.
 
-  Given the fundamental data, technical indicators, and news of a stock, provide a concise summary, a confidence level (0-1), an overall grade (A, B, C, etc.), and a risk disclaimer.
+Ensure your output is a JSON object matching the defined schema.
 
-  Fundamental Data: {{{fundamentalData}}}
-  Technical Indicators: {{{technicalIndicators}}}
-  News: {{{news}}}
-
-  Summary:
-  Confidence Level (0-1):
-  Overall Grade:
-  Risk Disclaimer:`,
+Fundamental Data: {{{fundamentalData}}}
+Technical Indicators: {{{technicalIndicators}}}
+News: {{{news}}}`,
 });
 
 const summarizeStockDataFlow = ai.defineFlow(

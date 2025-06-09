@@ -1,7 +1,8 @@
 
 "use server";
 
-import type { StockDetails, NepseStockSymbol, ChartDataPoint } from '@/types';
+import type { StockDetails, NepseStockSymbol, ChartDataPoint, BrokerInfo, ProcessedStockInfo } from '@/types';
+import { ALL_BROKERS } from '@/lib/constants';
 import { generateStockReport, type GenerateStockReportInput, type GenerateStockReportOutput } from '@/ai/flows/generate-stock-report';
 import { assessConfidenceLevel, type AssessConfidenceLevelInput, type AssessConfidenceLevelOutput } from '@/ai/flows/assess-confidence-level';
 import { generateRiskDisclaimer, type GenerateRiskDisclaimerInput, type GenerateRiskDisclaimerOutput } from '@/ai/flows/generate-risk-disclaimer';
@@ -57,7 +58,6 @@ const mockStockDatabase: Record<NepseStockSymbol, StockDetails> = {
       { id: "1", title: "HDL Announces New Product Line", source: "ShareSansar", date: "2024-04-15", url: "#", summary: "Himalayan Distillery is expanding its portfolio with a new range of premium beverages, expected to launch next quarter." },
     ],
   },
-  // Add more mock stocks if needed for testing (UPPER, API, CIT)
    "UPPER": {
     symbol: "UPPER",
     name: "Upper Tamakoshi Hydropower Ltd.",
@@ -135,10 +135,10 @@ function generateMockChartData(baseValue: number, isMACD: boolean = false, point
     currentDate.setDate(currentDate.getDate() + 1);
     let value;
     if (isMACD) {
-      value = baseValue + (Math.random() - 0.5) * (baseValue * 0.5); // MACD can be positive or negative
+      value = baseValue + (Math.random() - 0.5) * (baseValue * 0.5); 
     } else {
-      value = baseValue + (Math.random() - 0.5) * (baseValue * 0.1); // Fluctuate by 10%
-      value = Math.max(0, value); // Ensure non-negative for things like RSI, Price
+      value = baseValue + (Math.random() - 0.5) * (baseValue * 0.1); 
+      value = Math.max(0, value); 
     }
     data.push({
       date: currentDate.toISOString().split('T')[0],
@@ -165,9 +165,7 @@ function generateMockVolumeData(minVol: number = 10000, maxVol: number = 100000,
 
 
 export async function fetchStockDetailsAction(symbol: NepseStockSymbol): Promise<StockDetails | null> {
-  // Simulate API call delay
   await new Promise(resolve => setTimeout(resolve, 1000));
-  
   const stock = mockStockDatabase[symbol.toUpperCase() as NepseStockSymbol];
   if (stock) {
     return stock;
@@ -204,7 +202,6 @@ export async function generateAiStockReportAction(stockDetails: StockDetails): P
 }
 
 export async function assessAiConfidenceAction(stockDetails: StockDetails, aiReportText: string): Promise<AssessConfidenceLevelOutput> {
-  // Derive a simple news sentiment
   const positiveKeywords = ['up', 'profit', 'growth', 'positive', 'optimistic', 'exceeded', 'strong', 'stable', 'support', 'new product', 'full capacity'];
   const negativeKeywords = ['down', 'loss', 'decline', 'negative', 'bearish', 'concern'];
   let sentimentScore = 0;
@@ -221,7 +218,6 @@ export async function assessAiConfidenceAction(stockDetails: StockDetails, aiRep
   if (sentimentScore > 1) newsSentiment = "Positive";
   else if (sentimentScore < -1) newsSentiment = "Negative";
   else if (sentimentScore !== 0) newsSentiment = "Mixed";
-
 
   const input: AssessConfidenceLevelInput = {
     fundamentalData: formatDataForAI(stockDetails.fundamentalData, 'fundamental'),
@@ -247,4 +243,48 @@ export async function generateAiRiskDisclaimerAction(stockName: string): Promise
     console.error("Error in generateAiRiskDisclaimerAction:", error);
     throw new Error("Failed to generate AI risk disclaimer.");
   }
+}
+
+// Mock Broker Data
+const mockBrokerProcessedStocksData: Record<string, ProcessedStockInfo[]> = {
+  "B58": [ // Imperial Securities Co. Pvt. Ltd.
+    { symbol: "NABIL", companyName: "Nabil Bank Limited", lastProcessedDate: "2024-07-29", volumeTraded: 1500, transactionType: "Buy" },
+    { symbol: "HDL", companyName: "Himalayan Distillery Limited", lastProcessedDate: "2024-07-28", volumeTraded: 750, transactionType: "Sell" },
+    { symbol: "UPPER", companyName: "Upper Tamakoshi Hydropower Ltd.", lastProcessedDate: "2024-07-29", volumeTraded: 2200, transactionType: "Buy" },
+  ],
+  "B45": [ // Naasa Securities Co. Ltd.
+    { symbol: "API", companyName: "Api Power Company Ltd.", lastProcessedDate: "2024-07-27", volumeTraded: 3000, transactionType: "Match" },
+    { symbol: "CIT", companyName: "Citizen Investment Trust", lastProcessedDate: "2024-07-29", volumeTraded: 500, transactionType: "Buy" },
+    { symbol: "NABIL", companyName: "Nabil Bank Limited", lastProcessedDate: "2024-07-26", volumeTraded: 1200, transactionType: "Sell" },
+  ],
+  "B10": [ // Pragyan Securities Pvt. Ltd.
+    { symbol: "HDL", companyName: "Himalayan Distillery Limited", lastProcessedDate: "2024-07-29", volumeTraded: 900, transactionType: "Buy" },
+    { symbol: "UPPER", companyName: "Upper Tamakoshi Hydropower Ltd.", lastProcessedDate: "2024-07-25", volumeTraded: 1800, transactionType: "Sell" },
+  ],
+  // Add more mock data for other brokers if needed
+};
+
+// Action to fetch all brokers
+export async function fetchAllBrokersAction(): Promise<BrokerInfo[]> {
+  await new Promise(resolve => setTimeout(resolve, 500)); // Simulate API delay
+  return ALL_BROKERS;
+}
+
+// Action to fetch stocks processed by a specific broker
+export async function fetchStocksByBrokerAction(brokerId: string): Promise<ProcessedStockInfo[]> {
+  await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API delay
+  const stocks = mockBrokerProcessedStocksData[brokerId];
+  
+  // Simulate some randomness or dynamic data generation
+  if (stocks) {
+    const transactionTypes: ('Buy' | 'Sell' | 'Match')[] = ['Buy', 'Sell', 'Match'];
+    return stocks.map(stock => ({
+      ...stock,
+      // Randomly change transaction type for demo
+      transactionType: transactionTypes[Math.floor(Math.random() * transactionTypes.length)],
+      // Randomly adjust volume slightly
+      volumeTraded: stock.volumeTraded + Math.floor((Math.random() - 0.5) * 200) 
+    })).sort((a,b) => new Date(b.lastProcessedDate).getTime() - new Date(a.lastProcessedDate).getTime());
+  }
+  return []; // Return empty array if broker not found or no stocks
 }

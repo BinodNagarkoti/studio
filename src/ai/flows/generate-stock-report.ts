@@ -1,3 +1,4 @@
+
 // src/ai/flows/generate-stock-report.ts
 'use server';
 
@@ -21,7 +22,7 @@ export type GenerateStockReportInput = z.infer<typeof GenerateStockReportInputSc
 
 const GenerateStockReportOutputSchema = z.object({
   report: z.string().describe('The AI-driven stock weather report.'),
-  score: z.string().describe('A score or grade representing the overall outlook of the stock.'),
+  score: z.string().describe('A score or grade representing the overall outlook of the stock (e.g., A, B, C, or a numerical score).'),
   confidence: z.number().describe('A confidence meter indicating the degree of confidence in the AI-driven stock assessment (0 to 1).'),
   disclaimer: z.string().describe('A disclaimer about the risk and uncertainty involved in the stock market.'),
 });
@@ -35,22 +36,18 @@ const prompt = ai.definePrompt({
   name: 'generateStockReportPrompt',
   input: {schema: GenerateStockReportInputSchema},
   output: {schema: GenerateStockReportOutputSchema},
-  prompt: `You are an AI stock market analyst. Generate a stock weather report based on the provided information.
+  prompt: `You are an AI stock market analyst. Analyze the provided Fundamental Data, Technical Indicators, and News for a stock.
+Based on your analysis, generate:
+1.  A comprehensive stock report detailing your findings and outlook.
+2.  An overall outlook score (e.g., A, B, C, or a numerical score like 75/100).
+3.  A confidence level (a number between 0 and 1, where 0 is no confidence and 1 is full confidence) in your assessment.
+4.  A standard disclaimer about the risks and uncertainties involved in stock market investments.
+
+Ensure your output is a JSON object matching the defined schema.
 
 Fundamental Data: {{{fundamentalData}}}
 Technical Indicators: {{{technicalIndicators}}}
-News: {{{news}}}
-
-Analyze the data and generate a comprehensive stock report, a score (e.g., A, B, C) indicating the overall outlook, a confidence level (0 to 1) representing the confidence in the assessment, and a disclaimer about the risks of stock market investments.
-
-Report:
-{{report}}
-Score:
-{{score}}
-Confidence:
-{{confidence}}
-Disclaimer:
-{{disclaimer}}`,
+News: {{{news}}}`,
 });
 
 const generateStockReportFlow = ai.defineFlow(

@@ -1,3 +1,4 @@
+
 import type { LucideIcon } from 'lucide-react';
 import type { GenerateStockReportOutput } from '@/ai/flows/generate-stock-report';
 import type { AssessConfidenceLevelOutput } from '@/ai/flows/assess-confidence-level';
@@ -57,3 +58,18 @@ export interface ConfidenceData extends AssessConfidenceLevelOutput {}
 export interface DisclaimerData extends GenerateRiskDisclaimerOutput {}
 
 export type NepseStockSymbol = "NABIL" | "HDL" | "UPPER" | "API" | "CIT"; // Example symbols
+
+// Broker Insights Types
+export interface BrokerInfo {
+  id: string; // e.g. "B58"
+  name: string; // e.g. "Imperial Securities Co. Pvt. Ltd. (58)"
+  code: string; // e.g. "58"
+}
+
+export interface ProcessedStockInfo {
+  symbol: NepseStockSymbol;
+  companyName: string;
+  lastProcessedDate: string; // YYYY-MM-DD
+  volumeTraded: number; // Total volume traded by this broker for this stock
+  transactionType: 'Buy' | 'Sell' | 'Match'; // Or more specific if available
+}
