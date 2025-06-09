@@ -32,6 +32,7 @@ export async function GET(request: Request) {
   const internalApiBaseUrl = `${protocol}://${host}`;
 
   try {
+    console.log(`Attempting to spawn Python: Command='${PYTHON_COMMAND}', Script='${PYTHON_SCRIPT_PATH}'`);
     const pythonProcess = spawn(PYTHON_COMMAND, [PYTHON_SCRIPT_PATH]);
 
     let scriptOutput = '';
@@ -69,20 +70,24 @@ export async function GET(request: Request) {
         }
       });
 
-      pythonProcess.on('error', (err) => { // Handle errors like script not found
-        resolve({ success: false, error: 'Failed to start Python script.', details: err.message });
+      pythonProcess.on('error', (err: NodeJS.ErrnoException) => { // Handle errors like script not found
+        if (err.code === 'ENOENT') {
+            resolve({ success: false, error: `Failed to start Python script: Command '${PYTHON_COMMAND}' not found. Please ensure Python 3 is installed and in your system's PATH.`, details: err.message });
+        } else {
+            resolve({ success: false, error: 'Failed to start Python script.', details: err.message });
+        }
       });
     });
 
     if (!executionResult.success) {
       console.error('Python script execution failed:', executionResult.error, executionResult.details);
-      return NextResponse.json({ error: executionResult.error, details: executionResult.details }, { status: 500 });
+      return NextResponse.json({ error: executionResult.error, details: executionResult.details, python_stderr: scriptError.substring(0, 500) }, { status: 500 });
     }
     
     const scrapedDataFromPython = executionResult.data as NepseTodayPriceScrapedRow[];
 
     if (!Array.isArray(scrapedDataFromPython)) {
-        return NextResponse.json({ error: "Data from Python script was not an array.", received: scrapedDataFromPython }, { status: 500 });
+        return NextResponse.json({ error: "Data from Python script was not an array.", received: scrapedDataFromPython, python_stderr: scriptError.substring(0, 500) }, { status: 500 });
     }
     if (scrapedDataFromPython.length === 0) {
       // Check if the Python script might have "signaled" an error by returning an empty array after printing to stderr
@@ -118,7 +123,9 @@ export async function GET(request: Request) {
       return NextResponse.json({ 
         error: "Data scraped via Python, but failed to store it.", 
         details: storeResult.error || `Storing API responded with status ${storeResponse.status}` ,
-        python_data_sample: scrapedDataFromPython.slice(0,2)
+        python_data_sample: scrapedDataFromPython.slice(0,2),
+        python_stderr: scriptError.substring(0, 500),
+        storageApiResponse: storeResult // Include the full response from the storage API for debugging
       }, { status: storeResponse.status });
     }
 
@@ -126,7 +133,8 @@ export async function GET(request: Request) {
     return NextResponse.json({ 
       message: "Data successfully scraped via Python and sent for storage.", 
       storageApiResponse: storeResult,
-      python_records_scraped: scrapedDataFromPython.length
+      python_records_scraped: scrapedDataFromPython.length,
+      python_stderr: scriptError ? scriptError.substring(0, 500) : undefined
     }, { status: 200 });
 
   } catch (error: any) {
