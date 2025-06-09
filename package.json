@@ -9,7 +9,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "gen-types:supabase": "supabase gen types typescript --project-id bneqfadqatrwihfspthz --schema public > src/types/supabase.ts"
   },
   "dependencies": {
     "@genkit-ai/googleai": "^1.8.0",
