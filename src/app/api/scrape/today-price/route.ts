@@ -47,6 +47,7 @@ export async function GET() {
   let companiesFailedCount = 0;
   let marketDataFailedCount = 0;
   const errors: string[] = [];
+  let html = '';
 
   try {
     console.log(`Fetching data from ${NEPSE_TODAY_PRICE_URL}`);
@@ -54,7 +55,7 @@ export async function GET() {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
       },
-      cache: 'no-store'
+      cache: 'no-store' // Ensure fresh data is fetched
     });
     console.log(`Response status: ${response.status}`);
 
@@ -65,51 +66,46 @@ export async function GET() {
       return NextResponse.json({ error: fetchError, details: responseText }, { status: response.status });
     }
 
-    const html = await response.text();
+    html = await response.text();
     const $ = cheerio.load(html);
     
-    // Target the app-today-price element first, then find the table within it
     const todayPriceElement = $('app-today-price');
     if (todayPriceElement.length === 0) {
       const warningMsg = "The <app-today-price> custom element was not found. The page structure might have changed or the element is not present.";
       console.warn(warningMsg);
       errors.push(warningMsg);
-      // Still try the old selector as a fallback, or decide to fail here.
-      // For now, let's proceed with a warning and let the next check handle empty tableRows.
     }
 
-    // Try to find the table within app-today-price, or fallback to a general table selector if app-today-price wasn't found or didn't contain it.
     const tableRows = todayPriceElement.length > 0 
-      ? todayPriceElement.find('.table-responsive table tbody tr, table tbody tr') // More flexible selector within app-today-price
-      : $('.table-responsive table tbody tr, table tbody tr'); // Fallback to general page search if app-today-price is missing
+      ? todayPriceElement.find('.table-responsive table tbody tr, table tbody tr')
+      : $('.table-responsive table tbody tr, table tbody tr');
 
     if (tableRows.length === 0) {
       const warningMsg = "No data rows found in the table. Selectors might be incorrect or the page structure has changed.";
       console.warn(warningMsg);
-      if (errors.length === 0) errors.push(warningMsg); // Add if not already added
-      // Depending on requirements, you might want to return an error or just an empty success
+      if (errors.length === 0) errors.push(warningMsg); 
       return NextResponse.json({ 
         warning: warningMsg, 
         source: NEPSE_TODAY_PRICE_URL,
-        htmlChecked: html.substring(0, 500) + "..." // Send a snippet of HTML for debugging
-      }, { status: 200 }); // Success, but with a warning
+        htmlChecked: html.substring(0, 1000) + "..." // Send a larger snippet for debugging
+      }, { status: 200 });
     }
 
     tableRows.each((index, element) => {
       const columns = $(element).find('td');
-      if (columns.length >= 10) { // Assuming at least 10 columns as per previous structure
+      if (columns.length >= 10) {
         const rowData: NepseTodayPriceScrapedRow = {
           s_n: $(columns[0]).text().trim(),
-          companySymbol: $(columns[1]).find('a').text().trim() || $(columns[1]).text().trim(), // Handles if symbol is in an <a> tag
+          companySymbol: $(columns[1]).find('a').text().trim() || $(columns[1]).text().trim(),
           ltp: $(columns[2]).text().trim(),
-          changePercent: $(columns[3]).text().trim(), // This is % change, not point change
+          changePercent: $(columns[3]).text().trim(),
           openPrice: $(columns[4]).text().trim(),
           highPrice: $(columns[5]).text().trim(),
           lowPrice: $(columns[6]).text().trim(),
           qtyTraded: $(columns[7]).text().trim(),
           turnover: $(columns[8]).text().trim(),
           prevClosing: $(columns[9]).text().trim(),
-          differenceRs: $(columns[10]).text().trim(), // This is point change
+          differenceRs: $(columns[10]).text().trim(),
         };
         if (rowData.companySymbol) {
           scrapedRawData.push(rowData);
@@ -121,24 +117,33 @@ export async function GET() {
 
   } catch (error: any) {
     let detailedErrorMessage = `Error during page fetch or initial parsing: ${error.message}`;
+    let isCertError = false;
+
     if (error.cause) {
-      try {
-        detailedErrorMessage += ` | Cause: ${JSON.stringify(error.cause)}`;
-      } catch (stringifyError) {
-        detailedErrorMessage += ` | Cause: (Could not stringify error.cause: ${stringifyError.message})`;
-      }
+        const causeString = typeof error.cause.toString === 'function' ? error.cause.toString() : JSON.stringify(error.cause);
+        detailedErrorMessage += ` | Cause: ${causeString}`;
+        if (causeString.includes('UNABLE_TO_VERIFY_LEAF_SIGNATURE') || causeString.includes('unable to verify the first certificate')) {
+            isCertError = true;
+        }
     }
+    
+    if (isCertError) {
+        detailedErrorMessage += `\n\nThis looks like an SSL/TLS certificate verification issue. Your Node.js environment might not trust the certificate from ${NEPSE_TODAY_PRICE_URL}. For development, you might try setting the environment variable NODE_TLS_REJECT_UNAUTHORIZED=0 before running your server (e.g., 'NODE_TLS_REJECT_UNAUTHORIZED=0 npm run dev'). This is insecure and should NOT be used in production.`;
+    }
+
     fetchError = detailedErrorMessage;
-    console.error(fetchError, error.stack, error.cause);
+    console.error(fetchError, error.stack);
+    
     return NextResponse.json({ 
       error: fetchError, 
       details: error.stack, 
-      cause: error.cause ? String(error.cause) : undefined 
+      cause: error.cause ? (typeof error.cause.toString === 'function' ? error.cause.toString() : JSON.stringify(error.cause)) : undefined,
+      htmlChecked: html ? html.substring(0, 500) + "..." : "HTML not fetched"
     }, { status: 500 });
   }
 
+  const recordsToUpsert: DailyMarketDataInsert[] = [];
   if (scrapedRawData.length > 0) {
-    const recordsToUpsert: DailyMarketDataInsert[] = [];
     const tradeDate = new Date().toISOString().split('T')[0]; 
 
     for (const item of scrapedRawData) {
@@ -150,7 +155,7 @@ export async function GET() {
           .eq('ticker_symbol', item.companySymbol.toUpperCase())
           .single();
 
-        if (companySelectError && companySelectError.code !== 'PGRST116') { // PGRST116: no rows found (expected case)
+        if (companySelectError && companySelectError.code !== 'PGRST116') { 
           const errMsg = `Supabase error fetching company ID for ${item.companySymbol}: ${companySelectError.message}`;
           console.error(errMsg);
           errors.push(errMsg);
@@ -164,10 +169,9 @@ export async function GET() {
           console.log(`Company ${item.companySymbol} not found. Creating new entry...`);
           const newCompanyData: CompanyInsert = {
             ticker_symbol: item.companySymbol.toUpperCase(),
-            name: `[${item.companySymbol}] New Company (Update Name)`, // Placeholder name
+            name: `[${item.companySymbol}] New Company (Update Name)`, 
             is_active: true,
             scraped_at: new Date().toISOString(),
-            // Other fields like industry_sector, description, etc., would be null or default
           };
           const { data: newCompany, error: companyInsertError } = await supabase
             .from('companies')
@@ -209,15 +213,13 @@ export async function GET() {
           open_price: parseFloatOrNull(item.openPrice),
           high_price: parseFloatOrNull(item.highPrice),
           low_price: parseFloatOrNull(item.lowPrice),
-          close_price: parseFloatOrNull(item.ltp), // Last Traded Price as close_price
+          close_price: parseFloatOrNull(item.ltp),
           volume: parseIntOrNull(item.qtyTraded),
           turnover: parseFloatOrNull(item.turnover),
           previous_close_price: parseFloatOrNull(item.prevClosing),
-          price_change: parseFloatOrNull(item.differenceRs), // Point change
-          percent_change: parseFloatOrNull(item.changePercent.replace(/[\s%]+/g, '')), // Percentage change
+          price_change: parseFloatOrNull(item.differenceRs),
+          percent_change: parseFloatOrNull(item.changePercent.replace(/[\s%]+/g, '')),
           scraped_at: new Date().toISOString(),
-          // Fields like adjusted_close_price, market_cap, 52w_high/low are not on this page
-          // and would be null or populated by other scrapers/calculations.
         };
         recordsToUpsert.push(marketDataRecord);
 
@@ -230,34 +232,30 @@ export async function GET() {
     }
 
     if (recordsToUpsert.length > 0) {
-      const { error: upsertError } = await supabase
+      const { error: upsertError, count: upsertedActualCount } = await supabase
         .from('daily_market_data')
-        .upsert(recordsToUpsert, { onConflict: 'company_id, trade_date', ignoreDuplicates: false });
+        .upsert(recordsToUpsert, { onConflict: 'company_id, trade_date', ignoreDuplicates: false, count: 'exact' });
 
       if (upsertError) {
         const errMsg = `Supabase daily_market_data upsert error: ${upsertError.message}`;
         console.error(errMsg, upsertError.details);
         errors.push(errMsg);
-        // Adjust marketDataFailedCount based on how many actually failed from the batch
-        // For simplicity, assuming all might have failed if the upsert operation itself errored.
-        // A more granular check would require knowing which specific records failed.
-        marketDataFailedCount = recordsToUpsert.length; 
+        marketDataFailedCount += recordsToUpsert.length; // Assume all failed if operation fails
       } else {
-        marketDataUpsertedCount = recordsToUpsert.length; // Assuming all upserted successfully if no error
-        console.log(`Successfully attempted to upsert ${recordsToUpsert.length} market data records.`);
+        marketDataUpsertedCount = upsertedActualCount ?? recordsToUpsert.length; 
+        console.log(`Successfully attempted to upsert ${recordsToUpsert.length} market data records. Actual upserted/updated: ${marketDataUpsertedCount}`);
       }
     }
   }
 
-  const totalOperations = scrapedRawData.length + companiesUpsertedCount; // Simplified, as market data depends on raw data.
   const totalFailures = companiesFailedCount + marketDataFailedCount;
 
   let summaryMessage = `Scraping finished. Raw entries found: ${scrapedRawData.length}.`;
   if (scrapedRawData.length > 0) {
-     summaryMessage += ` Companies created: ${companiesUpsertedCount}. Market data entries processed for upsert: ${marketDataUpsertedCount}.`;
+     summaryMessage += ` Companies newly created: ${companiesUpsertedCount}. Market data entries processed for upsert: ${recordsToUpsert.length}. Market data actually upserted/updated: ${marketDataUpsertedCount}.`;
   }
   
-  const status = totalFailures > 0 && totalFailures === (companiesFailedCount + marketDataFailedCount) && scrapedRawData.length > 0 ? 500 
+  const status = totalFailures > 0 && totalFailures === (companiesFailedCount + (scrapedRawData.length > 0 ? recordsToUpsert.length - marketDataUpsertedCount : 0)) && scrapedRawData.length > 0 ? 500 
                : totalFailures > 0 ? 207 // Multi-Status for partial success
                : 200; // OK
 
@@ -267,14 +265,13 @@ export async function GET() {
     counts: {
       rawDataEntries: scrapedRawData.length,
       companiesNewlyCreated: companiesUpsertedCount,
-      marketDataEntriesForUpsert: recordsToUpsert.length, // Number of records prepared for upsert
-      marketDataSuccessfullyUpserted: marketDataUpsertedCount - (upsertError ? recordsToUpsert.length : 0), // Adjust if upsert failed
+      marketDataEntriesForUpsert: recordsToUpsert.length,
+      marketDataSuccessfullyUpserted: marketDataUpsertedCount,
       companiesFailedOperations: companiesFailedCount,
-      marketDataFailedOperations: marketDataFailedCount, // This counts items that failed pre-upsert or if upsert failed entirely
+      marketDataFailedOperations: marketDataFailedCount,
     },
     errors: errors.length > 0 ? errors : undefined,
-    fetchError: fetchError,
+    fetchError: fetchError, // The original fetch error, if any
+    htmlChecked: fetchError && html ? html.substring(0, 500) + "..." : (scrapedRawData.length === 0 && html ? html.substring(0,1000) + "..." : undefined)
   }, { status });
 }
-
-    
