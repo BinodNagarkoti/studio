@@ -2,9 +2,9 @@
 // src/services/nepse-data-service.ts
 import type { StockDetails, NepseStockSymbol, ChartDataPoint, BrokerInfo, ProcessedStockInfo } from '@/types';
 import { ALL_BROKERS } from '@/lib/constants'; // For mock getAllBrokers
-// import { supabase } from '@/lib/supabaseClient'; // Will be used when implementing Supabase
+import { supabase } from '@/lib/supabaseClient'; // Import Supabase client
 
-// --- Mock Data Section (Moved from actions.ts) ---
+// --- Mock Data Section (Will be phased out as Supabase integration progresses) ---
 // IMPORTANT: This section will be replaced with Supabase calls.
 
 const mockStockDatabase: Record<NepseStockSymbol, StockDetails> = {
@@ -177,6 +177,7 @@ const mockBrokerProcessedStocksData: Record<string, ProcessedStockInfo[]> = {
     { symbol: "HDL", companyName: "Himalayan Distillery Limited", lastProcessedDate: "2024-07-29", volumeTraded: 900, transactionType: "Buy" },
     { symbol: "UPPER", companyName: "Upper Tamakoshi Hydropower Ltd.", lastProcessedDate: "2024-07-25", volumeTraded: 1800, transactionType: "Sell" },
   ],
+  // Add more mock data for other brokers if needed
 };
 // --- End of Mock Data Section ---
 
@@ -184,10 +185,52 @@ const mockBrokerProcessedStocksData: Record<string, ProcessedStockInfo[]> = {
 // --- Service Functions ---
 
 export async function getStockDetails(symbol: NepseStockSymbol): Promise<StockDetails | null> {
-  // TODO: Replace this with a Supabase call to fetch stock details
-  // console.log(`Service: Fetching details for ${symbol} (mock)`);
-  await new Promise(resolve => setTimeout(resolve, 500)); // Simulate API delay
+  // console.log(`Service: Fetching details for ${symbol} (currently mock)`);
 
+  // TODO: Replace mock data with Supabase call
+  // Example Supabase Query (assuming you have a 'stocks_details' table):
+  /*
+  const { data, error } = await supabase
+    .from('stocks_details') // Replace 'stocks_details' with your actual table name
+    .select(`
+      symbol,
+      name,
+      last_price,
+      change,
+      change_percent,
+      market_cap,
+      volume,
+      fundamental_data, 
+      technical_indicators,
+      news
+    `) // Adjust columns as per your schema
+    .eq('symbol', symbol.toUpperCase())
+    .single();
+
+  if (error) {
+    console.error('Supabase error fetching stock details:', error);
+    return null;
+  }
+  if (data) {
+    // You'll need to transform the data from Supabase to match the StockDetails type
+    // This might involve parsing JSONB columns for fundamentalData, technicalIndicators, news
+    return {
+        symbol: data.symbol,
+        name: data.name,
+        lastPrice: data.last_price,
+        change: data.change,
+        changePercent: data.change_percent,
+        marketCap: data.market_cap,
+        volume: data.volume,
+        fundamentalData: data.fundamental_data || [], // Assuming JSONB or similar
+        technicalIndicators: data.technical_indicators || [], // Assuming JSONB or similar
+        news: data.news || [], // Assuming JSONB or similar
+    } as StockDetails; 
+  }
+  */
+  
+  // Returning mock data for now
+  await new Promise(resolve => setTimeout(resolve, 500)); // Simulate API delay
   const stock = mockStockDatabase[symbol.toUpperCase() as NepseStockSymbol];
   if (stock) {
     return stock;
@@ -196,23 +239,62 @@ export async function getStockDetails(symbol: NepseStockSymbol): Promise<StockDe
 }
 
 export async function getAllBrokers(): Promise<BrokerInfo[]> {
-  // TODO: Replace this with a Supabase call if brokers are stored in DB,
-  // or continue using constants if the list is static.
-  // console.log("Service: Fetching all brokers (mock from constants)");
+  // console.log("Service: Fetching all brokers (currently mock from constants)");
+
+  // TODO: Replace mock data with Supabase call if brokers are stored in DB
+  // Example Supabase Query (assuming you have a 'brokers' table):
+  /*
+  const { data, error } = await supabase
+    .from('brokers') // Replace 'brokers' with your actual table name
+    .select('id, name, code'); // Adjust columns as per your schema
+
+  if (error) {
+    console.error('Supabase error fetching brokers:', error);
+    return [];
+  }
+  return data || [];
+  */
+
+  // Returning mock data for now
   await new Promise(resolve => setTimeout(resolve, 200));
   return ALL_BROKERS; // Using imported ALL_BROKERS from constants.ts for now
 }
 
 export async function getStocksByBroker(brokerId: string): Promise<ProcessedStockInfo[]> {
-  // TODO: Replace this with a Supabase call to fetch stocks for a given broker
-  // console.log(`Service: Fetching stocks for broker ${brokerId} (mock)`);
-  await new Promise(resolve => setTimeout(resolve, 700)); // Simulate API delay
+  // console.log(`Service: Fetching stocks for broker ${brokerId} (currently mock)`);
 
+  // TODO: Replace mock data with Supabase call
+  // Example Supabase Query (assuming you have a 'broker_processed_stocks' table):
+  /*
+  const { data, error } = await supabase
+    .from('broker_processed_stocks') // Replace 'broker_processed_stocks' with your actual table name
+    .select('symbol, company_name, last_processed_date, volume_traded, transaction_type') // Adjust columns
+    .eq('broker_id', brokerId)
+    .order('last_processed_date', { ascending: false });
+
+  if (error) {
+    console.error('Supabase error fetching stocks by broker:', error);
+    return [];
+  }
+  
+  if (data) {
+      return data.map(item => ({
+        symbol: item.symbol,
+        companyName: item.company_name,
+        lastProcessedDate: item.last_processed_date,
+        volumeTraded: item.volume_traded,
+        transactionType: item.transaction_type,
+      })) as ProcessedStockInfo[];
+  }
+  return [];
+  */
+
+  // Returning mock data for now
+  await new Promise(resolve => setTimeout(resolve, 700)); // Simulate API delay
   const stocks = mockBrokerProcessedStocksData[brokerId];
 
   if (stocks) {
     const transactionTypes: ('Buy' | 'Sell' | 'Match')[] = ['Buy', 'Sell', 'Match'];
-    // Slightly randomize for demo purposes
     return stocks.map(stock => ({
       ...stock,
       transactionType: transactionTypes[Math.floor(Math.random() * transactionTypes.length)],
@@ -221,3 +303,5 @@ export async function getStocksByBroker(brokerId: string): Promise<ProcessedStoc
   }
   return [];
 }
+
+    
