@@ -2,7 +2,7 @@
 
 import type { ChartDataPoint } from '@/types';
 import { BarChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ComposedChart, Bar } from 'recharts';
-import { ChartTooltipContent, ChartContainer, ChartConfig } from '@/components/ui/chart';
+import { ChartTooltip, ChartTooltipContent, ChartContainer, ChartConfig } from '@/components/ui/chart';
 
 interface TechnicalIndicatorChartProps {
   data: ChartDataPoint[];
