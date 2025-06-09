@@ -27,7 +27,7 @@ interface NepseTodayPriceScrapedRow {
   differenceRs: string;
 }
 
-export default function ScrapeTodayPriceViewerPage() {
+export default function ScrapeTodayPriceLegacyMethodsPage() { // Renamed component
   const [isLoading, setIsLoading] = useState(false);
   const [scrapeAndStoreResult, setScrapeAndStoreResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
@@ -159,11 +159,11 @@ export default function ScrapeTodayPriceViewerPage() {
           <CardHeader>
             <div className="flex items-center gap-3">
               <Tv className="h-6 w-6 text-primary" />
-              <CardTitle className="text-xl font-semibold font-headline text-primary">NEPSE Today's Price - Scraper Control Panel</CardTitle>
+              <CardTitle className="text-xl font-semibold font-headline text-primary">NEPSE Scraper - Legacy Methods</CardTitle>
             </div>
             <CardDescription>
-              Use the buttons below to scrape NEPSE data. Client-side scraping attempts to fetch and parse directly in your browser (may fail due to CORS). Python scraping triggers a server-side Python script.
-              <br /><strong>Note:</strong> Direct client-side fetching from nepalstock.com.np may be blocked by browser CORS policy.
+              This page provides options to test client-side (browser) scraping and server-side Python-based scraping for NEPSE Today's Price. 
+              Client-side scraping is prone to CORS issues. The main scraping control panel is at <code className="bg-muted px-1 py-0.5 rounded">/admin/scrape</code>.
               <br /><strong>Python Scraper Note:</strong> Ensure Python 3 and libraries (requests, beautifulsoup4) are installed on the server.
             </CardDescription>
           </CardHeader>
@@ -183,7 +183,7 @@ export default function ScrapeTodayPriceViewerPage() {
                 ) : (
                   <VenetianMask className="mr-2 h-4 w-4" /> // Icon for Python
                 )}
-                {isLoading && currentStep.toLowerCase().includes('python') ? currentStep : "Scrape via Python & Store"}
+                {isLoading && currentStep.toLowerCase().includes('python') ? currentStep : "Scrape via Python & Store (Direct API Call)"}
               </Button>
             </div>
             
@@ -287,3 +287,6 @@ export default function ScrapeTodayPriceViewerPage() {
     </div>
   );
 }
+
+    
+    
