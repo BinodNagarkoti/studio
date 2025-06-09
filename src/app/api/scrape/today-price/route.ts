@@ -1,13 +1,17 @@
 
 import { NextResponse } from 'next/server';
 import * as cheerio from 'cheerio';
-import { supabase } from '@/lib/supabaseClient'; // Ensure this path is correct
+import { supabase } from '@/lib/supabaseClient';
+import type { Database } from '@/types/supabase';
+
+type CompanyInsert = Database['public']['Tables']['companies']['Insert'];
+type DailyMarketDataInsert = Database['public']['Tables']['daily_market_data']['Insert'];
 
 // Define an interface for the shape of data scraped from NEPSE for 'today-price'
-// This should align with how you want to temporarily store/process it before mapping to Supabase table structure
 interface NepseTodayPriceScrapedRow {
   s_n: string;
-  companySymbol: string;
+  companySymbol: string; // This is the Ticker Symbol
+  // companyName: string; // The 'today-price' page typically doesn't list full company names in the main table, only symbols.
   ltp: string; // Last Traded Price
   changePercent: string;
   openPrice: string;
@@ -19,14 +23,16 @@ interface NepseTodayPriceScrapedRow {
   differenceRs: string;
 }
 
-// Helper function to parse string to number or null
+// Helper function to parse string to number or null, handling commas
 const parseFloatOrNull = (val: string): number | null => {
+  if (!val || typeof val !== 'string') return null;
   const cleanedVal = val.replace(/,/g, '');
   const num = parseFloat(cleanedVal);
   return isNaN(num) ? null : num;
 };
 
 const parseIntOrNull = (val: string): number | null => {
+  if (!val || typeof val !== 'string') return null;
   const cleanedVal = val.replace(/,/g, '');
   const num = parseInt(cleanedVal, 10);
   return isNaN(num) ? null : num;
@@ -36,17 +42,36 @@ const parseIntOrNull = (val: string): number | null => {
 export async function GET() {
   const NEPSE_TODAY_PRICE_URL = 'https://nepalstock.com.np/today-price';
   const scrapedRawData: NepseTodayPriceScrapedRow[] = [];
+  let fetchError: string | null = null;
+  let companiesUpsertedCount = 0;
+  let marketDataUpsertedCount = 0;
+  let companiesFailedCount = 0;
+  let marketDataFailedCount = 0;
+  const errors: string[] = [];
+
+  // --- Best Practice Note ---
+  // For long-running tasks like scraping multiple pages or extensive data processing,
+  // consider using a proper background job/queue system (e.g., BullMQ, Celery with Redis/RabbitMQ)
+  // instead of a synchronous Next.js API route. This prevents request timeouts and improves reliability.
+
+  // --- Scraping Etiquette Note ---
+  // Be mindful of NEPSE's terms of service. Implement rate limiting and avoid overly aggressive scraping.
+  // Use a proper User-Agent string. Consider adding delays between requests if scraping multiple pages.
 
   try {
     const response = await fetch(NEPSE_TODAY_PRICE_URL, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
       },
-      next: { revalidate: 3600 } // Revalidate every hour for this example
+      // Revalidate cache strategy for Next.js fetch, if needed.
+      // For a scraping job, you might want 'no-store' or control revalidation carefully.
+      next: { revalidate: 300 } // Example: revalidate every 5 minutes. Adjust as needed.
     });
 
     if (!response.ok) {
-      return NextResponse.json({ error: `Failed to fetch page: ${response.statusText}` }, { status: response.status });
+      fetchError = `Failed to fetch page: ${response.status} ${response.statusText}`;
+      console.error(fetchError);
+      return NextResponse.json({ error: fetchError, details: await response.text().catch(() => '') }, { status: response.status });
     }
 
     const html = await response.text();
@@ -55,17 +80,20 @@ export async function GET() {
     const tableRows = $('.table-responsive table tbody tr');
 
     if (tableRows.length === 0) {
-        return NextResponse.json({ warning: "No data rows found. The table selector might be incorrect or the page structure has changed." }, { status: 200 });
+      const warningMsg = "No data rows found on the page. The table selector might be incorrect or the page structure has changed.";
+      console.warn(warningMsg);
+      return NextResponse.json({ warning: warningMsg, source: NEPSE_TODAY_PRICE_URL }, { status: 200 });
     }
 
     tableRows.each((index, element) => {
       const columns = $(element).find('td');
-      if (columns.length >= 10) { // Ensure enough columns for the data expected
+      // Ensure enough columns for the data expected. The "today-price" table usually has around 11-12 columns.
+      if (columns.length >= 10) { 
         const rowData: NepseTodayPriceScrapedRow = {
           s_n: $(columns[0]).text().trim(),
-          companySymbol: $(columns[1]).text().trim(),
+          companySymbol: $(columns[1]).find('a').text().trim() || $(columns[1]).text().trim(), // Symbol is often in an <a> tag
           ltp: $(columns[2]).text().trim(),
-          changePercent: $(columns[3]).text().trim(),
+          changePercent: $(columns[3]).text().trim(), // Sometimes contains " %" or other chars
           openPrice: $(columns[4]).text().trim(),
           highPrice: $(columns[5]).text().trim(),
           lowPrice: $(columns[6]).text().trim(),
@@ -74,98 +102,165 @@ export async function GET() {
           prevClosing: $(columns[9]).text().trim(),
           differenceRs: $(columns[10]).text().trim(),
         };
-        if (rowData.companySymbol) {
+        if (rowData.companySymbol) { // Only add if a symbol was found
           scrapedRawData.push(rowData);
         }
+      } else {
+        console.warn(`Skipping row ${index + 1} due to insufficient columns: ${columns.length}`);
       }
     });
 
-    if (scrapedRawData.length > 0) {
-      // --- Supabase Integration ---
-      // 1. Fetch all company_ids and their ticker_symbols from your 'companies' table
-      //    to map symbols to foreign keys.
-      const { data: companies, error: companiesError } = await supabase
-        .from('companies')
-        .select('id, ticker_symbol');
+  } catch (error: any) {
+    fetchError = `Error during page fetch or initial parsing: ${error.message}`;
+    console.error(fetchError, error);
+    return NextResponse.json({ error: fetchError, details: error.stack }, { status: 500 });
+  }
 
-      if (companiesError) {
-        console.error('Supabase error fetching companies:', companiesError);
-        return NextResponse.json({ error: 'Failed to fetch company mappings for Supabase insert.', details: companiesError.message }, { status: 500 });
-      }
+  if (scrapedRawData.length > 0) {
+    const recordsToUpsert: DailyMarketDataInsert[] = [];
+    const tradeDate = new Date().toISOString().split('T')[0]; // Assuming scraping for "today"
 
-      const companySymbolToIdMap = new Map<string, string>();
-      companies?.forEach(c => {
-        if (c.ticker_symbol) companySymbolToIdMap.set(c.ticker_symbol, c.id);
-      });
+    // --- Data Assumption Note ---
+    // This script assumes the 'today-price' page reflects the current trading day's final data.
+    // If it's live and changing intra-day, the 'close_price' (LTP) logic might need adjustment
+    // or you might scrape at market close.
 
-      // 2. Transform scrapedRawData into the structure for 'daily_market_data' table
-      const recordsToUpsert = scrapedRawData.map(item => {
-        const companyId = companySymbolToIdMap.get(item.companySymbol);
-        if (!companyId) {
-          console.warn(`No company_id found for symbol: ${item.companySymbol}. Skipping this record.`);
-          return null; // Skip if no matching company ID (or handle company creation)
+    // --- Note on Specific Fields ---
+    // Fields like 'market_capitalization', 'fifty_two_week_high', 'fifty_two_week_low',
+    // and 'adjusted_close_price' are often NOT available on the main 'today-price' table.
+    // They usually come from different pages (e.g., company-specific profile pages) or require calculations.
+    // This scraper will primarily populate fields directly available on the 'today-price' table.
+
+    for (const item of scrapedRawData) {
+      try {
+        // 1. Find or create company_id
+        let companyId: string | undefined;
+        const { data: existingCompany, error: companySelectError } = await supabase
+          .from('companies')
+          .select('id')
+          .eq('ticker_symbol', item.companySymbol.toUpperCase())
+          .single();
+
+        if (companySelectError && companySelectError.code !== 'PGRST116') { // PGRST116: no rows found
+          const errMsg = `Supabase error fetching company ID for ${item.companySymbol}: ${companySelectError.message}`;
+          console.error(errMsg);
+          errors.push(errMsg);
+          companiesFailedCount++;
+          continue; // Skip this stock item
         }
 
-        const tradeDate = new Date().toISOString().split('T')[0]; // Assuming scraping for "today"
+        if (existingCompany) {
+          companyId = existingCompany.id;
+        } else {
+          // Company not found, create it
+          console.log(`Company ${item.companySymbol} not found. Creating new entry...`);
+          const newCompanyData: CompanyInsert = {
+            ticker_symbol: item.companySymbol.toUpperCase(),
+            name: `[${item.companySymbol}] New Company (Update Name)`, // Placeholder name
+            is_active: true,
+            // Other fields like 'description', 'industry_sector' would be null or default
+            // and ideally updated by a more specific company information scraper.
+            scraped_at: new Date().toISOString(),
+          };
+          const { data: newCompany, error: companyInsertError } = await supabase
+            .from('companies')
+            .insert(newCompanyData)
+            .select('id')
+            .single();
 
-        return {
+          if (companyInsertError) {
+            const errMsg = `Supabase error creating new company ${item.companySymbol}: ${companyInsertError.message}`;
+            console.error(errMsg);
+            errors.push(errMsg);
+            companiesFailedCount++;
+            continue; // Skip this stock item
+          }
+          if (newCompany) {
+            companyId = newCompany.id;
+            companiesUpsertedCount++;
+            console.log(`Created new company ${item.companySymbol} with ID ${companyId}`);
+          } else {
+            const errMsg = `Failed to create or retrieve ID for new company ${item.companySymbol}.`;
+            console.error(errMsg);
+            errors.push(errMsg);
+            companiesFailedCount++;
+            continue;
+          }
+        }
+
+        if (!companyId) {
+          const errMsg = `Could not determine company_id for symbol: ${item.companySymbol}. Skipping this record.`;
+          console.warn(errMsg);
+          errors.push(errMsg);
+          marketDataFailedCount++;
+          continue;
+        }
+
+        const marketDataRecord: DailyMarketDataInsert = {
           company_id: companyId,
-          trade_date: tradeDate, // Or parse from page if available and reliable
+          trade_date: tradeDate,
           open_price: parseFloatOrNull(item.openPrice),
           high_price: parseFloatOrNull(item.highPrice),
           low_price: parseFloatOrNull(item.lowPrice),
-          close_price: parseFloatOrNull(item.ltp), // LTP is usually the close for "today's price"
-          // adjusted_close_price: // Needs calculation if not directly available
+          close_price: parseFloatOrNull(item.ltp), // LTP is used as close for "today's price"
           volume_traded: parseIntOrNull(item.qtyTraded),
           turnover: parseFloatOrNull(item.turnover),
-          // market_capitalization: // Needs to be scraped from elsewhere or calculated
           previous_close_price: parseFloatOrNull(item.prevClosing),
           price_change: parseFloatOrNull(item.differenceRs),
-          price_change_percent: parseFloatOrNull(item.changePercent.replace('%', '')),
-          // fifty_two_week_high: // Needs to be scraped from elsewhere
-          // fifty_two_week_low: // Needs to be scraped from elsewhere
+          // Remove '%' and convert to number for changePercent
+          price_change_percent: parseFloatOrNull(item.changePercent.replace(/[\s%]+/g, '')),
           scraped_at: new Date().toISOString(),
+          // market_capitalization, fifty_two_week_high/low, adjusted_close_price
+          // are typically not on this page. They will default to null if not provided.
         };
-      }).filter(record => record !== null); // Remove any null records (skipped due to missing company_id)
+        recordsToUpsert.push(marketDataRecord);
 
-
-      if (recordsToUpsert.length > 0) {
-        // 3. Upsert into Supabase 'daily_market_data' table
-        //    Using 'company_id' and 'trade_date' as conflict target for upsert
-        const { data: upsertData, error: upsertError } = await supabase
-          .from('daily_market_data')
-          .upsert(recordsToUpsert as any[], { onConflict: 'company_id, trade_date' }); // Adjust onConflict as per your table's unique constraints
-
-        if (upsertError) {
-          console.error('Supabase upsert error:', upsertError);
-          return NextResponse.json({ error: 'Failed to save scraped data to Supabase.', details: upsertError.message }, { status: 500 });
-        } else {
-          console.log('Successfully upserted data to Supabase daily_market_data:', upsertData);
-        }
+      } catch (loopError: any) {
+        const errMsg = `Error processing item ${item.companySymbol}: ${loopError.message}`;
+        console.error(errMsg, loopError);
+        errors.push(errMsg);
+        marketDataFailedCount++;
       }
     }
-    // --- End of Supabase Integration ---
 
-    return NextResponse.json({
-      message: `Scraping successful. Found ${scrapedRawData.length} raw entries. Upserted ${recordsToUpsert.length} records.`,
-      source: NEPSE_TODAY_PRICE_URL,
-      // data: scrapedRawData, // Optionally return raw data for debugging
-      // upsertedData: recordsToUpsert // Optionally return transformed data
-    });
+    if (recordsToUpsert.length > 0) {
+      // Upsert into Supabase 'daily_market_data' table
+      // Using 'company_id' and 'trade_date' as conflict target for upsert
+      const { data: upsertData, error: upsertError } = await supabase
+        .from('daily_market_data')
+        .upsert(recordsToUpsert, { onConflict: 'company_id, trade_date', ignoreDuplicates: false });
 
-  } catch (error) {
-    console.error('Scraping API error:', error);
-    const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred during scraping.';
-    return NextResponse.json({ error: 'Failed to scrape data.', details: errorMessage }, { status: 500 });
+      if (upsertError) {
+        const errMsg = `Supabase daily_market_data upsert error: ${upsertError.message}`;
+        console.error(errMsg, upsertError.details);
+        errors.push(errMsg);
+        marketDataFailedCount += recordsToUpsert.length; // Assume all failed if upsert block fails
+      } else {
+        // Supabase upsert doesn't return a count of affected rows directly in the same way as insert/update.
+        // We'll infer success based on lack of error for records that made it to `recordsToUpsert`.
+        marketDataUpsertedCount = recordsToUpsert.length - marketDataFailedCount; // Adjust count based on prior failures
+        console.log(`Successfully attempted to upsert ${recordsToUpsert.length} market data records.`);
+      }
+    }
   }
+
+  const totalOperations = scrapedRawData.length + companiesUpsertedCount; // Approx.
+  const totalFailures = companiesFailedCount + marketDataFailedCount;
+
+  const summaryMessage = `Scraping finished. Raw entries: ${scrapedRawData.length}. Companies created/updated: ${companiesUpsertedCount}. Market data entries processed: ${marketDataUpsertedCount + marketDataFailedCount}.`;
+  const status = totalFailures > 0 && totalFailures === totalOperations ? 500 : totalFailures > 0 ? 207 : 200; // 207 Multi-Status if partial success
+
+  return NextResponse.json({
+    message: summaryMessage,
+    source: NEPSE_TODAY_PRICE_URL,
+    counts: {
+      rawDataEntries: scrapedRawData.length,
+      companiesFoundOrCreated: scrapedRawData.length - companiesFailedCount, // Assuming one company per raw data entry attempt
+      companiesNewlyCreated: companiesUpsertedCount, // This is accurate for newly created
+      marketDataUpserted: marketDataUpsertedCount,
+      companiesFailed: companiesFailedCount,
+      marketDataFailed: marketDataFailedCount,
+    },
+    errors: errors.length > 0 ? errors : undefined,
+  }, { status });
 }
-
-// Note: For a production scraper:
-// - Implement more robust error handling for network issues, Cheerio parsing, and Supabase operations.
-// - Consider a queue or background job for scraping and Supabase inserts to avoid long-running API requests.
-// - Handle cases where company symbols might not yet exist in your 'companies' table (e.g., create new company entries).
-// - Be mindful of NEPSE's terms of service and scraping etiquette (rate limits, etc.).
-// - This script assumes the 'today-price' page reflects the current trading day's final data. If it's live and changing, the 'close_price' logic might need adjustment.
-// - Market cap, 52-week high/low, and adjusted close often come from different pages or require calculations.
-```
-
