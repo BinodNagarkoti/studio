@@ -15,7 +15,7 @@ except ImportError:
     error_output = {
         "error": "Python script: Missing 'selenium' dependency.",
         "details": "The 'selenium' library is not installed in your Python environment.",
-        "message": "Please install it by running: pip install selenium (or pip3 install selenium)"
+        "message": "Please install it by running: `pip install selenium` or `pip3 install selenium` in your terminal. If you are using virtual environments, ensure it's installed in the correct one."
     }
     print(json.dumps(error_output), file=sys.stderr)
     sys.exit(1)
@@ -58,14 +58,23 @@ def scrape_with_selenium():
     except WebDriverException as e:
         details = str(e)
         error_msg = "Python script (Selenium): Failed to initialize WebDriver."
-        user_message = "Ensure chromedriver is installed, compatible with your Chrome browser, and in your system's PATH. "
+        user_message = (
+            "This usually means ChromeDriver is not set up correctly. Please ensure:\n"
+            "1. ChromeDriver is installed.\n"
+            "2. The version of ChromeDriver matches your installed Chrome browser version.\n"
+            "3. The ChromeDriver executable is in your system's PATH.\n\n"
+            "Steps to fix:\n"
+            "  a. Download ChromeDriver: Go to https://chromedriver.chromium.org/downloads and download the version corresponding to your Chrome browser.\n"
+            "  b. Place ChromeDriver: Extract the 'chromedriver' (or 'chromedriver.exe' on Windows) executable and place it in a directory that is part of your system's PATH (e.g., /usr/local/bin on macOS/Linux, or a specific folder added to PATH on Windows).\n"
+            "  c. Verify PATH: You can check if it's in PATH by typing 'chromedriver --version' in your terminal. If it's not found, your PATH is not configured correctly for it.\n\n"
+        )
         
         if "executable needs to be in path" in details.lower():
-            user_message += "Specifically, 'chromedriver' was not found. "
+            user_message += "Specific error: 'chromedriver' executable was not found in your system's PATH. "
             if not is_chromedriver_in_path():
-                 user_message += "It does not appear to be in your current PATH. You may need to download it from https://chromedriver.chromium.org/downloads and place it in a directory listed in your PATH. "
+                 user_message += "A quick check confirms it's not in the current PATH directories. "
         elif "version" in details.lower():
-            user_message += "There might be a version mismatch between your Chrome browser and chromedriver. Download a compatible version from https://chromedriver.chromium.org/downloads. "
+            user_message += "Specific error: There might be a version mismatch between your Chrome browser and ChromeDriver. Please download a compatible version. "
             
         error_output = {
             "error": error_msg,
@@ -78,7 +87,7 @@ def scrape_with_selenium():
         error_output = {
             "error": "Python script (Selenium): An unexpected error occurred during WebDriver initialization.",
             "details": str(e),
-            "message": "Please check your Selenium and ChromeDriver setup. Ensure ChromeDriver is in your PATH and compatible with your Chrome version."
+            "message": "Please check your Selenium and ChromeDriver setup. Ensure ChromeDriver is in your PATH and compatible with your Chrome version. Detailed instructions can be found by re-running after ensuring 'selenium' is installed."
         }
         print(json.dumps(error_output), file=sys.stderr)
         sys.exit(1)
@@ -92,7 +101,7 @@ def scrape_with_selenium():
         # Wait for the app-today-price tag to be present, then the table within it
         app_today_price_element = wait.until(
             EC.presence_of_element_located((By.TAG_NAME, 'app-today-price')),
-            "Timed out waiting for the 'app-today-price' element to load."
+            "Timed out waiting for the 'app-today-price' element to load. The page might be slow or the element is missing."
         )
 
         table_element = None
@@ -104,24 +113,40 @@ def scrape_with_selenium():
         
         for by_type, selector in possible_table_locators:
             try:
-                table_element = app_today_price_element.find_element(by_type, selector)
+                # Wait for table to be present within app_today_price_element
+                table_element = wait.until(
+                    EC.presence_of_element_located((by_type, selector)), # This was wrong: app_today_price_element.find_element(by_type, selector)
+                    f"Timed out waiting for table with selector '{selector}' within 'app-today-price'."
+                )
                 if table_element:
                     break # Found the table
-            except NoSuchElementException:
+            except (NoSuchElementException, TimeoutException): # Catch both if find_element or wait fails
                 continue # Try next locator
         
         if not table_element:
-            raise NoSuchElementException("Could not find the main data table within app-today-price element on the page. The page structure might have changed.")
+            # This error suggests the fundamental structure expected is not present
+            error_output = {
+                "error": "Python script (Selenium): Main data table structure not found.",
+                "details": "Could not find the main data table (<td> elements) within the 'app-today-price' element on the page.",
+                "message": "The page structure (nepalstock.com.np/today-price) might have changed significantly, or the selectors need adjustment. Verify the presence of 'app-today-price' and its table."
+            }
+            print(json.dumps(error_output), file=sys.stderr)
+            driver.quit()
+            sys.exit(1)
 
         # Wait for at least one table row to be present in the table body
-        wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, 'tbody tr'))) # Assuming table within app-today-price
+        wait.until(
+            EC.presence_of_all_elements_located((By.CSS_SELECTOR, 'tbody tr')), # Wait for all elements, or at least one
+            "Timed out waiting for table rows ('tbody tr') to load within the data table."
+        )
         
         table_rows = table_element.find_elements(By.CSS_SELECTOR, 'tbody tr')
 
         if not table_rows:
             # This case means the table structure was found, but it's empty or no rows matched.
             # It's not necessarily an error with the scraper itself, could be no data on the page.
-            pass # Output empty list later
+            # Script will output empty list later.
+            pass
 
         for row_element in table_rows:
             columns = row_element.find_elements(By.TAG_NAME, 'td')
@@ -168,15 +193,15 @@ def scrape_with_selenium():
     except TimeoutException as e:
         error_output = {
             "error": "Python script (Selenium): Timed out waiting for page elements to load.",
-            "details": f"The page at {NEPSE_TODAY_PRICE_URL} might be slow, or key elements like 'app-today-price' or its table did not appear within the timeout. Original error: {str(e)}"
+            "details": f"The page at {NEPSE_TODAY_PRICE_URL} might be slow, or key elements like 'app-today-price', its table, or table rows did not appear within the timeout. Original error: {str(e)}"
         }
         print(json.dumps(error_output), file=sys.stderr)
         sys.exit(1)
-    except NoSuchElementException as e:
+    except NoSuchElementException as e: # This might be redundant if table_element check is robust
         error_output = {
-            "error": "Python script (Selenium): Could not find a required HTML element.",
+            "error": "Python script (Selenium): Could not find a required HTML element during data extraction (e.g., specific 'td' or 'a' tag).",
             "details": str(e),
-            "message": "The page structure might have changed, or selectors need adjustment. Check if 'app-today-price' or its table structure is present as expected."
+            "message": "The page structure for individual rows/cells might have changed, or selectors need adjustment. This usually happens after successfully finding the main table."
         }
         print(json.dumps(error_output), file=sys.stderr)
         sys.exit(1)
@@ -193,3 +218,5 @@ def scrape_with_selenium():
 
 if __name__ == '__main__':
     scrape_with_selenium()
+
+    
