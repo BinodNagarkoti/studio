@@ -2,28 +2,30 @@
 "use server";
 
 import type {
-  StockDisplayProfile,
+  // StockDisplayProfile, // Removed as stock details are no longer fetched from DB for display
   NepseStockSymbol, 
   BrokerSelectItem,
   ProcessedStockInfo,
-  CompanySelectItem
+  CompanySelectItem // Still used by StockSearchForm if it were dynamic
 } from '@/types';
 import {
-  getStockDisplayProfile,
+  // getStockDisplayProfile, // Removed
   getAllBrokers as getAllBrokersService, 
   getStocksByBroker as getStocksByBrokerService, 
-  getAllCompaniesForSearch as getAllCompaniesForSearchService
+  getAllCompaniesForSearch as getAllCompaniesForSearchService // Kept if StockSearchForm goes dynamic again
 } from '@/services/nepse-data-service';
 import { getAIWebSearchStockReport, type GetAIWebSearchStockReportInput, type GetAIWebSearchStockReportOutput } from '@/ai/flows/get-ai-web-search-stock-report';
 
 
 // --- Data Fetching Actions (Delegating to nepse-data-service) ---
 
-export async function fetchStockDetailsAction(symbol: NepseStockSymbol): Promise<StockDisplayProfile | null> {
-  return getStockDisplayProfile(symbol);
-}
+// export async function fetchStockDetailsAction(symbol: NepseStockSymbol): Promise<StockDisplayProfile | null> {
+//   return getStockDisplayProfile(symbol);
+// } // Removed
 
 export async function fetchAllCompaniesForSearchAction(): Promise<CompanySelectItem[]> {
+  // This can be used if StockSearchForm switches back to dynamic loading.
+  // For now, StockSearchForm uses local stock_data.json
   return getAllCompaniesForSearchService();
 }
 
@@ -37,7 +39,7 @@ export async function fetchStocksByBrokerAction(brokerId: string): Promise<Proce
 }
 
 
-// --- New AI Web Search Action ---
+// --- AI Web Search Action ---
 export async function getAiWebSearchReportAction(
   input: GetAIWebSearchStockReportInput
 ): Promise<GetAIWebSearchStockReportOutput> {
@@ -45,9 +47,8 @@ export async function getAiWebSearchReportAction(
     const result = await getAIWebSearchStockReport(input);
     return result;
   } catch (error) {
-    console.error("Full error in getAiWebSearchReportAction:", error); // Enhanced server-side logging
+    console.error("Full error in getAiWebSearchReportAction:", error); 
     const errorMessage = error instanceof Error ? error.message : "An unknown AI error occurred during web search report generation.";
-    // Return a structured error response matching the expected output schema
     return {
       report: `Failed to generate AI web search report: ${errorMessage}. Check server logs or Genkit dev console for more details.`,
       score: "Error",

@@ -16,8 +16,13 @@ const FormSchema = z.object({
   symbol: z.string({required_error: "Please select a stock symbol."}).min(1, "Please select a stock symbol."),
 });
 
+export interface StockSearchFormData {
+  symbol: NepseStockSymbol;
+  name: string;
+}
+
 interface StockSearchFormProps {
-  onSearch: (symbol: NepseStockSymbol) => void;
+  onSearch: (data: StockSearchFormData) => void;
   isLoading: boolean;
 }
 
@@ -34,7 +39,13 @@ export function StockSearchForm({ onSearch, isLoading }: StockSearchFormProps) {
   });
 
   function onSubmit(data: z.infer<typeof FormSchema>) {
-    onSearch(data.symbol as NepseStockSymbol);
+    const selectedCompany = companies.find(c => c.stock_symbol === data.symbol);
+    if (selectedCompany) {
+      onSearch({ symbol: data.symbol as NepseStockSymbol, name: selectedCompany.name });
+    } else {
+      // Should not happen if data.symbol comes from the select list based on companies
+      onSearch({ symbol: data.symbol as NepseStockSymbol, name: data.symbol }); // Fallback name
+    }
   }
 
   return (

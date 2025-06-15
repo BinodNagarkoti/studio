@@ -2,19 +2,19 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import type { StockDisplayProfile, NepseStockSymbol, BrokerSelectItem, ProcessedStockInfo } from '@/types';
+import type { NepseStockSymbol, BrokerSelectItem, ProcessedStockInfo } from '@/types';
 import type { GetAIWebSearchStockReportOutput } from '@/ai/flows/get-ai-web-search-stock-report';
-import { StockSearchForm } from '@/components/stock/StockSearchForm';
+import { StockSearchForm, type StockSearchFormData } from '@/components/stock/StockSearchForm';
 import { StockDataDisplay } from '@/components/stock/StockDataDisplay';
 import { AppHeader } from '@/components/layout/Header';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertCircle, BarChart3, Briefcase, LineChart, UserRoundSearch, Info } from "lucide-react";
+import { AlertCircle, BarChart3, Briefcase, LineChart, UserRoundSearch, Info, SearchCheck } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BrokerSelectForm } from '@/components/broker/BrokerSelectForm';
 import { BrokerStocksDisplay } from '@/components/broker/BrokerStocksDisplay';
 import { 
-  fetchStockDetailsAction, 
+  // fetchStockDetailsAction, // Removed
   getAiWebSearchReportAction,
   fetchAllBrokersAction,
   fetchStocksByBrokerAction
@@ -22,8 +22,8 @@ import {
 import { useToast } from "@/hooks/use-toast";
 
 export default function HomePage() {
-  const [stockSymbol, setStockSymbol] = useState<NepseStockSymbol | null>(null);
-  const [stockDetails, setStockDetails] = useState<StockDisplayProfile | null>(null);
+  const [selectedStock, setSelectedStock] = useState<{symbol: NepseStockSymbol, name: string} | null>(null);
+  // const [stockDetails, setStockDetails] = useState<StockDisplayProfile | null>(null); // Removed
   const [aiWebSearchReport, setAiWebSearchReport] = useState<GetAIWebSearchStockReportOutput | null>(null);
   const [isStockAnalysisLoading, setIsStockAnalysisLoading] = useState(false);
   const [stockAnalysisError, setStockAnalysisError] = useState<string | null>(null);
@@ -42,34 +42,34 @@ export default function HomePage() {
   }, []);
 
 
-  const handleStockSearch = async (symbol: NepseStockSymbol) => {
+  const handleStockSearch = async (data: StockSearchFormData) => {
     setIsStockAnalysisLoading(true);
     setStockAnalysisError(null);
-    setStockDetails(null);
+    // setStockDetails(null); // Removed
     setAiWebSearchReport(null); 
-    setStockSymbol(symbol);
+    setSelectedStock(data);
 
     try {
-      toast({ title: "Fetching Stock Data...", description: `Looking up basic details for ${symbol}.`});
-      const details = await fetchStockDetailsAction(symbol);
-      if (!details || !details.company) {
-        const msg = `Basic data for stock symbol "${symbol}" not found. It might not be in the database yet.`;
-        setStockAnalysisError(msg);
-        toast({ title: "Data Not Found", description: msg, variant: "destructive" });
-        setIsStockAnalysisLoading(false);
-        return;
-      }
-      setStockDetails(details);
-      toast({ title: "Stock Data Fetched!", description: `Successfully retrieved basic data for ${details.company.name}.`, variant: "default" });
+      // toast({ title: "Fetching Stock Data...", description: `Looking up basic details for ${data.symbol}.`}); // Removed
+      // const details = await fetchStockDetailsAction(data.symbol); // Removed
+      // if (!details || !details.company) { // Removed
+      //   const msg = `Basic data for stock symbol "${data.symbol}" not found. It might not be in the database yet.`; // Removed
+      //   setStockAnalysisError(msg); // Removed
+      //   toast({ title: "Data Not Found", description: msg, variant: "destructive" }); // Removed
+      //   setIsStockAnalysisLoading(false); // Removed
+      //   return; // Removed
+      // } // Removed
+      // setStockDetails(details); // Removed
+      // toast({ title: "Stock Data Fetched!", description: `Successfully retrieved basic data for ${details.company.name}.`, variant: "default" }); // Removed
 
-      toast({ title: "Generating AI Web Search Report...", description: "Our AI is 'searching the web' for insights." });
-      const reportOutput = await getAiWebSearchReportAction({ stockSymbol: symbol, companyName: details.company.name });
+      toast({ title: "Generating AI Web Search Report...", description: `Our AI is 'searching the web' for insights on ${data.symbol} (${data.name}).` });
+      const reportOutput = await getAiWebSearchReportAction({ stockSymbol: data.symbol, companyName: data.name });
       setAiWebSearchReport(reportOutput);
       
       if (reportOutput.score === "Error") {
          toast({ title: "AI Report Generation Issue", description: reportOutput.report || "Could not generate AI report.", variant: "destructive" });
       } else {
-         toast({ title: "AI Web Search Report Generated!", description: `Analysis for ${details.company.name} is ready.`, className: "bg-accent text-accent-foreground" });
+         toast({ title: "AI Web Search Report Generated!", description: `Analysis for ${data.name} is ready.`, className: "bg-accent text-accent-foreground" });
       }
 
     } catch (err) {
@@ -128,15 +128,15 @@ export default function HomePage() {
               ShareScope: NEPSE AI Insights
             </h2>
             <p className="text-base sm:text-lg text-muted-foreground">
-              Comprehensive stock data, AI-driven analysis, and broker activity for the Nepal Stock Exchange.
+              AI-driven analysis for the Nepal Stock Exchange, based on simulated web research.
             </p>
           </div>
 
           <Alert variant="default" className="shadow-md bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-900/30 dark:border-blue-700 dark:text-blue-300">
             <Info className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-            <AlertTitle className="font-semibold">Data Source Notice</AlertTitle>
+            <AlertTitle className="font-semibold">AI Analysis Notice</AlertTitle>
             <AlertDescription>
-              This application fetches stock listings and basic market data from a database. AI insights are generated by an LLM based on the selected stock symbol.
+              Stock listings are for selection purposes. All analytical insights (reports, scores, confidence) are generated by an LLM simulating web research for the selected stock symbol and company name. No live database lookups for specific stock fundamentals or real-time market data are performed for this AI analysis.
             </AlertDescription>
           </Alert>
           
@@ -160,17 +160,18 @@ export default function HomePage() {
                   <AlertDescription>{stockAnalysisError}</AlertDescription>
                 </Alert>
               )}
-              {!isStockAnalysisLoading && !stockAnalysisError && stockDetails && stockDetails.company && (
+              {!isStockAnalysisLoading && !stockAnalysisError && selectedStock && aiWebSearchReport && (
                 <div className="mt-8">
                   <StockDataDisplay 
-                    stockDetails={stockDetails} 
-                    aiWebSearchReport={aiWebSearchReport ?? undefined}
+                    stockSymbol={selectedStock.symbol}
+                    companyName={selectedStock.name}
+                    aiWebSearchReport={aiWebSearchReport}
                   />
                 </div>
               )}
-              {!isStockAnalysisLoading && !stockDetails && !stockAnalysisError && (
+              {!isStockAnalysisLoading && !selectedStock && !stockAnalysisError && (
                 <div className="text-center py-10 mt-6">
-                  <BarChart3 className="mx-auto h-16 w-16 text-muted-foreground/50" />
+                  <SearchCheck className="mx-auto h-16 w-16 text-muted-foreground/50" />
                   <p className="mt-4 text-lg text-muted-foreground">
                     Select a stock symbol to begin your AI-powered analysis.
                   </p>
