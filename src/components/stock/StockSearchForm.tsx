@@ -9,10 +9,8 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Search, Loader2 } from "lucide-react";
 import type { NepseStockSymbol } from "@/types";
-import { useState, useEffect } from "react";
-// Re-importing stock_data.json
+import { useState } from "react";
 import stockData from '@/../stock_data.json'; 
-import { useToast } from "@/hooks/use-toast";
 
 const FormSchema = z.object({
   symbol: z.string({required_error: "Please select a stock symbol."}).min(1, "Please select a stock symbol."),
@@ -20,7 +18,7 @@ const FormSchema = z.object({
 
 interface StockSearchFormProps {
   onSearch: (symbol: NepseStockSymbol) => void;
-  isLoading: boolean; // Loading state for when selected stock's details are being fetched
+  isLoading: boolean;
 }
 
 interface StockDataItem {
@@ -29,16 +27,11 @@ interface StockDataItem {
 }
 
 export function StockSearchForm({ onSearch, isLoading }: StockSearchFormProps) {
-  // Use stock_data.json directly
-  const [companies, setCompanies] = useState<StockDataItem[]>(stockData);
-  // Removed isCompanyListLoading as data is loaded statically
-  const { toast } = useToast();
+  const [companies] = useState<StockDataItem[]>(stockData);
 
   const form = useForm<z.infer<typeof FormSchema>>({
     resolver: zodResolver(FormSchema),
   });
-
-  // Removed useEffect for fetching companies, as it's loaded from JSON now.
 
   function onSubmit(data: z.infer<typeof FormSchema>) {
     onSearch(data.symbol as NepseStockSymbol);
@@ -56,7 +49,7 @@ export function StockSearchForm({ onSearch, isLoading }: StockSearchFormProps) {
               <Select 
                 onValueChange={field.onChange} 
                 defaultValue={field.value} 
-                disabled={isLoading} // Only disable if main search is loading
+                disabled={isLoading}
               >
                 <FormControl>
                   <SelectTrigger>
@@ -91,4 +84,3 @@ export function StockSearchForm({ onSearch, isLoading }: StockSearchFormProps) {
     </Form>
   );
 }
-

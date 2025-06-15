@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import type { StockDisplayProfile, AIReportData, ConfidenceData, DisclaimerData, NepseStockSymbol, BrokerSelectItem, ProcessedStockInfo } from '@/types';
+import type { StockDisplayProfile, NepseStockSymbol, BrokerSelectItem, ProcessedStockInfo } from '@/types';
 import type { GetAIWebSearchStockReportOutput } from '@/ai/flows/get-ai-web-search-stock-report';
 import { StockSearchForm } from '@/components/stock/StockSearchForm';
 import { StockDataDisplay } from '@/components/stock/StockDataDisplay';
@@ -15,24 +15,19 @@ import { BrokerSelectForm } from '@/components/broker/BrokerSelectForm';
 import { BrokerStocksDisplay } from '@/components/broker/BrokerStocksDisplay';
 import { 
   fetchStockDetailsAction, 
-  getAiWebSearchReportAction, // New action for AI web search report
+  getAiWebSearchReportAction,
   fetchAllBrokersAction,
   fetchStocksByBrokerAction
 } from '@/lib/actions';
 import { useToast } from "@/hooks/use-toast";
 
 export default function HomePage() {
-  // State for Stock Analysis Tab
   const [stockSymbol, setStockSymbol] = useState<NepseStockSymbol | null>(null);
   const [stockDetails, setStockDetails] = useState<StockDisplayProfile | null>(null);
-  
-  // Unified state for AI report from the new flow
   const [aiWebSearchReport, setAiWebSearchReport] = useState<GetAIWebSearchStockReportOutput | null>(null);
-
   const [isStockAnalysisLoading, setIsStockAnalysisLoading] = useState(false);
   const [stockAnalysisError, setStockAnalysisError] = useState<string | null>(null);
 
-  // State for Broker Insights Tab
   const [selectedBroker, setSelectedBroker] = useState<BrokerSelectItem | null>(null);
   const [brokerProcessedStocks, setBrokerProcessedStocks] = useState<ProcessedStockInfo[]>([]);
   const [isBrokerStocksLoading, setIsBrokerStocksLoading] = useState(false);
@@ -40,13 +35,18 @@ export default function HomePage() {
   
   const [activeTab, setActiveTab] = useState("stock-analysis");
   const { toast } = useToast();
+  const [currentYear, setCurrentYear] = useState<number | null>(null);
 
-  // Stock Analysis Handler
+  useEffect(() => {
+    setCurrentYear(new Date().getFullYear());
+  }, []);
+
+
   const handleStockSearch = async (symbol: NepseStockSymbol) => {
     setIsStockAnalysisLoading(true);
     setStockAnalysisError(null);
     setStockDetails(null);
-    setAiWebSearchReport(null); // Reset new AI report state
+    setAiWebSearchReport(null); 
     setStockSymbol(symbol);
 
     try {
@@ -76,7 +76,6 @@ export default function HomePage() {
       const errorMessage = err instanceof Error ? err.message : "An unknown error occurred during stock analysis.";
       setStockAnalysisError(errorMessage);
       toast({ title: "Stock Analysis Error", description: errorMessage, variant: "destructive" });
-      console.error("Stock Analysis Error:",err);
     } finally {
       setIsStockAnalysisLoading(false);
     }
@@ -87,7 +86,7 @@ export default function HomePage() {
     setBrokerInsightsError(null);
     setBrokerProcessedStocks([]);
     
-    const allBrokers = await fetchAllBrokersAction(); // Fetch brokers to find the name
+    const allBrokers = await fetchAllBrokersAction(); 
     const currentBroker = allBrokers.find(b => b.id === brokerId);
     setSelectedBroker(currentBroker || { id: brokerId, name: `Broker ${brokerId.substring(0,4)}...`, broker_code: "" });
 
@@ -113,7 +112,6 @@ export default function HomePage() {
       const errorMessage = err instanceof Error ? err.message : "An unknown error occurred fetching broker stocks.";
       setBrokerInsightsError(errorMessage);
       toast({ title: "Broker Activity Error", description: errorMessage, variant: "destructive" });
-      console.error("Broker Activity Error:", err);
     } finally {
       setIsBrokerStocksLoading(false);
     }
@@ -165,8 +163,8 @@ export default function HomePage() {
               {!isStockAnalysisLoading && !stockAnalysisError && stockDetails && stockDetails.company && (
                 <div className="mt-8">
                   <StockDataDisplay 
-                    stockDetails={stockDetails} // Basic DB data
-                    aiWebSearchReport={aiWebSearchReport ?? undefined} // New AI report
+                    stockDetails={stockDetails} 
+                    aiWebSearchReport={aiWebSearchReport ?? undefined}
                   />
                 </div>
               )}
@@ -219,7 +217,7 @@ export default function HomePage() {
         </div>
       </main>
       <footer className="py-6 text-center text-sm text-muted-foreground border-t">
-        © {new Date().getFullYear()} ShareScope AI. All rights reserved. Financial data is for informational purposes only.
+        © {currentYear ?? new Date().getFullYear()} ShareScope AI. All rights reserved. Financial data is for informational purposes only.
       </footer>
     </div>
   );

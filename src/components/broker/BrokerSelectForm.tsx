@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { UserRoundSearch, Loader2 } from "lucide-react";
-import type { BrokerSelectItem } from "@/types"; // Changed from BrokerInfo
+import type { BrokerSelectItem } from "@/types";
 import { useEffect, useState } from "react";
 import { fetchAllBrokersAction } from "@/lib/actions";
 import { useToast } from "@/hooks/use-toast";
@@ -18,8 +18,8 @@ const FormSchema = z.object({
 });
 
 interface BrokerSelectFormProps {
-  onBrokerSelect: (brokerId: string) => void; // brokerId is the UUID from the 'brokers' table
-  isLoading: boolean; // Loading state for when selected broker's stocks are being fetched
+  onBrokerSelect: (brokerId: string) => void;
+  isLoading: boolean;
 }
 
 export function BrokerSelectForm({ onBrokerSelect, isLoading }: BrokerSelectFormProps) {
@@ -35,14 +35,8 @@ export function BrokerSelectForm({ onBrokerSelect, isLoading }: BrokerSelectForm
     const loadBrokers = async () => {
       setIsBrokerListLoading(true);
       try {
-        // toast({ title: "Fetching Broker List...", description: "Loading available NEPSE brokers."});
-        const fetchedBrokers = await fetchAllBrokersAction(); // This should return BrokerSelectItem[]
+        const fetchedBrokers = await fetchAllBrokersAction();
         setBrokers(fetchedBrokers);
-        if (fetchedBrokers.length > 0) {
-        //   toast({ title: "Broker List Loaded!", description: `${fetchedBrokers.length} brokers available.`, variant: "default"});
-        } else {
-        //   toast({ title: "No Brokers Found", description: "Could not find any brokers.", variant: "default" });
-        }
       } catch (error) {
         console.error("Failed to fetch brokers:", error);
         toast({ title: "Error Loading Brokers", description: "Could not load broker list. Please try again later.", variant: "destructive" });
@@ -55,7 +49,7 @@ export function BrokerSelectForm({ onBrokerSelect, isLoading }: BrokerSelectForm
   }, [toast]);
 
   function onSubmit(data: z.infer<typeof FormSchema>) {
-    onBrokerSelect(data.brokerId); // data.brokerId will be the UUID of the selected broker
+    onBrokerSelect(data.brokerId);
   }
 
   return (
@@ -82,7 +76,7 @@ export function BrokerSelectForm({ onBrokerSelect, isLoading }: BrokerSelectForm
                     <SelectItem value="loading" disabled>Loading brokers...</SelectItem>
                   ) : brokers.length > 0 ? (
                     brokers.map((broker) => (
-                      <SelectItem key={broker.id} value={broker.id}> {/* Use broker.id (UUID) as value */}
+                      <SelectItem key={broker.id} value={broker.id}>
                         {broker.name} ({broker.broker_code})
                       </SelectItem>
                     ))
@@ -107,5 +101,3 @@ export function BrokerSelectForm({ onBrokerSelect, isLoading }: BrokerSelectForm
     </Form>
   );
 }
-
-    

@@ -11,8 +11,7 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "gen-types:supabase": "supabase gen types typescript --project-id bneqfadqatrwihfspthz --schema public > src/types/supabase.ts",
-    "scrape:today-price": "node scripts/trigger-scrape.js"
+    "gen-types:supabase": "supabase gen types typescript --project-id bneqfadqatrwihfspthz --schema public > src/types/supabase.ts"
   },
   "dependencies": {
     "@genkit-ai/googleai": "^1.8.0",
@@ -39,7 +38,6 @@
     "@radix-ui/react-toast": "^1.2.6",
     "@radix-ui/react-tooltip": "^1.1.8",
     "@supabase/supabase-js": "^2.45.0",
-    "cheerio": "^1.0.0-rc.12",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "^3.6.0",

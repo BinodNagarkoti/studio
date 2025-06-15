@@ -7,14 +7,14 @@ import { SectionCard } from '@/components/common/SectionCard';
 import { TechnicalIndicatorChart } from '@/components/charts/TechnicalIndicatorChart';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
-import { AlertTriangle, BarChart3, Brain, FileText, Gauge, Newspaper, TrendingUp, TrendingDown, Minus, Info, SearchCheck } from 'lucide-react';
+import { AlertTriangle, BarChart3, FileText, Newspaper, TrendingUp, TrendingDown, Minus, Info, SearchCheck } from 'lucide-react';
 import Link from 'next/link';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
 
 interface StockDataDisplayProps {
-  stockDetails: StockDisplayProfile; // Basic data from DB (company info, market data)
-  aiWebSearchReport?: GetAIWebSearchStockReportOutput; // Report from new AI flow
+  stockDetails: StockDisplayProfile;
+  aiWebSearchReport?: GetAIWebSearchStockReportOutput;
 }
 
 export function StockDataDisplay({ stockDetails, aiWebSearchReport }: StockDataDisplayProps) {
@@ -34,8 +34,6 @@ export function StockDataDisplay({ stockDetails, aiWebSearchReport }: StockDataD
     return 'text-muted-foreground';
   };
 
-  // Simplified fundamental, technical, and news data from StockDisplayProfile (DB)
-  // These might be less relevant if aiWebSearchReport is comprehensive.
   const fundamentalDataForDisplay: FundamentalDataItem[] = [];
   if (stockDetails.ratios?.pe_ratio !== null && stockDetails.ratios?.pe_ratio !== undefined) {
     fundamentalDataForDisplay.push({ metric: "P/E Ratio (DB)", value: stockDetails.ratios.pe_ratio, description: "Price-to-Earnings Ratio from database" });
@@ -48,13 +46,13 @@ export function StockDataDisplay({ stockDetails, aiWebSearchReport }: StockDataD
     name: ti.indicator_name + " (DB)",
     value: ti.value ?? 'N/A',
     interpretation: ti.interpretation ?? undefined,
-    chartData: [], // Chart data not available for individual indicators from DB in this simplified view
+    chartData: [], 
   })) || [];
 
   const newsForDisplay: NewsItem[] = stockDetails.recentNews?.slice(0,1).map(n => ({
     id: n.id,
-    title: n.headline + " (DB)",
-    source: n.source_name || 'Unknown',
+    title: n.headline + " (DB)", // Using headline from CompanyNewsEvent mapped from DB
+    source: n.source_name || 'Unknown', // Using source_name
     date: n.event_date,
     summary: n.summary || '',
     url: n.url || '#',
@@ -132,7 +130,6 @@ export function StockDataDisplay({ stockDetails, aiWebSearchReport }: StockDataD
         </SectionCard>
       )}
 
-      {/* Displaying limited DB data for context, if available */}
       {fundamentalDataForDisplay.length > 0 && (
         <SectionCard title="Fundamental Data (from DB)" icon={FileText} defaultOpen={false}>
            <Alert variant="default" className="mb-3 bg-sky-50 border-sky-200 text-sky-700 dark:bg-sky-900/30 dark:border-sky-700 dark:text-sky-300">
