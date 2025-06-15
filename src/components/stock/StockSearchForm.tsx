@@ -1,3 +1,4 @@
+
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -7,13 +8,10 @@ import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Search, Loader2 } from "lucide-react";
-import type { NepseStockSymbol } from "@/types"; // NepseStockSymbol is now string
-import { useState } from "react";
-// Removed the import for fetchAllCompaniesForSearchAction
-// Removed the import for useToast as toasts were primarily for loading the list
-
-// Directly import the stock data from the JSON file
-import stockData from "../../../stock_data.json";
+import type { NepseStockSymbol, CompanySelectItem } from "@/types";
+import { useState, useEffect } from "react";
+import { fetchAllCompaniesForSearchAction } from "@/lib/actions";
+import { useToast } from "@/hooks/use-toast";
 
 const FormSchema = z.object({
   symbol: z.string({required_error: "Please select a stock symbol."}).min(1, "Please select a stock symbol."),
@@ -25,16 +23,34 @@ interface StockSearchFormProps {
 }
 
 export function StockSearchForm({ onSearch, isLoading }: StockSearchFormProps) {
-  // Initialize companies state directly with imported data
-  const [companies] = useState(stockData);
-  // isCompanyListLoading is no longer needed as data is local
-  const isCompanyListLoading = false; // Set to false since data is loaded directly
+  const [companies, setCompanies] = useState<CompanySelectItem[]>([]);
+  const [isCompanyListLoading, setIsCompanyListLoading] = useState(true);
+  const { toast } = useToast();
 
   const form = useForm<z.infer<typeof FormSchema>>({
     resolver: zodResolver(FormSchema),
   });
 
-  // Removed the useEffect hook for fetching data
+  useEffect(() => {
+    const loadCompanies = async () => {
+      setIsCompanyListLoading(true);
+      try {
+        // toast({ title: "Fetching Company List...", description: "Loading available NEPSE companies."});
+        const fetchedCompanies = await fetchAllCompaniesForSearchAction();
+        setCompanies(fetchedCompanies);
+        if (fetchedCompanies.length === 0) {
+        //   toast({ title: "No Companies Found", description: "Could not find any companies in the database.", variant: "default" });
+        }
+      } catch (error) {
+        console.error("Failed to fetch companies:", error);
+        toast({ title: "Error Loading Companies", description: "Could not load company list. Please try again later.", variant: "destructive" });
+        setCompanies([]); // Ensure companies is an empty array on error
+      } finally {
+        setIsCompanyListLoading(false);
+      }
+    };
+    loadCompanies();
+  }, [toast]);
 
   function onSubmit(data: z.infer<typeof FormSchema>) {
     onSearch(data.symbol as NepseStockSymbol);
@@ -56,19 +72,20 @@ export function StockSearchForm({ onSearch, isLoading }: StockSearchFormProps) {
               >
                 <FormControl>
                   <SelectTrigger>
-                    <SelectValue placeholder="Select a company" />
+                    <SelectValue placeholder={isCompanyListLoading ? "Loading companies..." : "Select a company"} />
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
-                  {/* Map over the imported stockData */}
-                  {companies.length > 0 ? (
+                  {isCompanyListLoading ? (
+                    <SelectItem value="loading" disabled>Loading companies...</SelectItem>
+                  ) : companies.length > 0 ? (
                     companies.map((company) => (
-                      <SelectItem key={company.stock_symbol} value={company.stock_symbol}>
-                        {company.name} ({company.stock_symbol})
+                      <SelectItem key={company.ticker_symbol} value={company.ticker_symbol}>
+                        {company.name} ({company.ticker_symbol})
                       </SelectItem>
                     ))
                   ) : (
-                     <SelectItem value="no-companies" disabled>No companies available in JSON</SelectItem>
+                     <SelectItem value="no-companies" disabled>No companies available or failed to load</SelectItem>
                   )}
                 </SelectContent>
               </Select>
