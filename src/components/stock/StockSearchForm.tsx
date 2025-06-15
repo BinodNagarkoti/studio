@@ -8,9 +8,10 @@ import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Search, Loader2 } from "lucide-react";
-import type { NepseStockSymbol, CompanySelectItem } from "@/types";
+import type { NepseStockSymbol } from "@/types";
 import { useState, useEffect } from "react";
-import { fetchAllCompaniesForSearchAction } from "@/lib/actions";
+// Re-importing stock_data.json
+import stockData from '@/../stock_data.json'; 
 import { useToast } from "@/hooks/use-toast";
 
 const FormSchema = z.object({
@@ -22,35 +23,22 @@ interface StockSearchFormProps {
   isLoading: boolean; // Loading state for when selected stock's details are being fetched
 }
 
+interface StockDataItem {
+  stock_symbol: string;
+  name: string;
+}
+
 export function StockSearchForm({ onSearch, isLoading }: StockSearchFormProps) {
-  const [companies, setCompanies] = useState<CompanySelectItem[]>([]);
-  const [isCompanyListLoading, setIsCompanyListLoading] = useState(true);
+  // Use stock_data.json directly
+  const [companies, setCompanies] = useState<StockDataItem[]>(stockData);
+  // Removed isCompanyListLoading as data is loaded statically
   const { toast } = useToast();
 
   const form = useForm<z.infer<typeof FormSchema>>({
     resolver: zodResolver(FormSchema),
   });
 
-  useEffect(() => {
-    const loadCompanies = async () => {
-      setIsCompanyListLoading(true);
-      try {
-        // toast({ title: "Fetching Company List...", description: "Loading available NEPSE companies."});
-        const fetchedCompanies = await fetchAllCompaniesForSearchAction();
-        setCompanies(fetchedCompanies);
-        if (fetchedCompanies.length === 0) {
-        //   toast({ title: "No Companies Found", description: "Could not find any companies in the database.", variant: "default" });
-        }
-      } catch (error) {
-        console.error("Failed to fetch companies:", error);
-        toast({ title: "Error Loading Companies", description: "Could not load company list. Please try again later.", variant: "destructive" });
-        setCompanies([]); // Ensure companies is an empty array on error
-      } finally {
-        setIsCompanyListLoading(false);
-      }
-    };
-    loadCompanies();
-  }, [toast]);
+  // Removed useEffect for fetching companies, as it's loaded from JSON now.
 
   function onSubmit(data: z.infer<typeof FormSchema>) {
     onSearch(data.symbol as NepseStockSymbol);
@@ -68,24 +56,22 @@ export function StockSearchForm({ onSearch, isLoading }: StockSearchFormProps) {
               <Select 
                 onValueChange={field.onChange} 
                 defaultValue={field.value} 
-                disabled={isLoading || isCompanyListLoading}
+                disabled={isLoading} // Only disable if main search is loading
               >
                 <FormControl>
                   <SelectTrigger>
-                    <SelectValue placeholder={isCompanyListLoading ? "Loading companies..." : "Select a company"} />
+                    <SelectValue placeholder={companies.length === 0 ? "No companies loaded" : "Select a company"} />
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
-                  {isCompanyListLoading ? (
-                    <SelectItem value="loading" disabled>Loading companies...</SelectItem>
-                  ) : companies.length > 0 ? (
+                  {companies.length > 0 ? (
                     companies.map((company) => (
-                      <SelectItem key={company.ticker_symbol} value={company.ticker_symbol}>
-                        {company.name} ({company.ticker_symbol})
+                      <SelectItem key={company.stock_symbol} value={company.stock_symbol}>
+                        {company.name} ({company.stock_symbol})
                       </SelectItem>
                     ))
                   ) : (
-                     <SelectItem value="no-companies" disabled>No companies available or failed to load</SelectItem>
+                     <SelectItem value="no-companies" disabled>No companies available</SelectItem>
                   )}
                 </SelectContent>
               </Select>
@@ -93,7 +79,7 @@ export function StockSearchForm({ onSearch, isLoading }: StockSearchFormProps) {
             </FormItem>
           )}
         />
-        <Button type="submit" className="w-full bg-primary hover:bg-primary/90 text-primary-foreground" disabled={isLoading || isCompanyListLoading || companies.length === 0}>
+        <Button type="submit" className="w-full bg-primary hover:bg-primary/90 text-primary-foreground" disabled={isLoading || companies.length === 0}>
           {isLoading ? (
             <Loader2 className="mr-2 h-5 w-5 animate-spin" />
           ) : (
@@ -105,3 +91,4 @@ export function StockSearchForm({ onSearch, isLoading }: StockSearchFormProps) {
     </Form>
   );
 }
+
