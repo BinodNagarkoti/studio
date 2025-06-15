@@ -1,7 +1,7 @@
 
 import type {Metadata} from 'next';
 import './globals.css';
-import { Toaster } from "@/components/ui/toaster";
+// import { Toaster } from "@/components/ui/toaster"; // Toaster removed
 
 export const metadata: Metadata = {
   title: 'ShareScope AI',
@@ -22,7 +22,7 @@ export default function RootLayout({
       </head>
       <body className="font-body antialiased min-h-screen flex flex-col bg-background text-foreground">
         {children}
-        <Toaster />
+        {/* <Toaster /> */} {/* Toaster removed */}
       </body>
     </html>
   );

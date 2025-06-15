@@ -7,23 +7,21 @@ import type { GetAIWebSearchStockReportOutput } from '@/ai/flows/get-ai-web-sear
 import { StockSearchForm, type StockSearchFormData } from '@/components/stock/StockSearchForm';
 import { StockDataDisplay } from '@/components/stock/StockDataDisplay';
 import { AppHeader } from '@/components/layout/Header';
-import { LoadingSpinner } from '@/components/common/LoadingSpinner';
+// import { LoadingSpinner } from '@/components/common/LoadingSpinner'; // Replaced by skeletons
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertCircle, BarChart3, Briefcase, LineChart, UserRoundSearch, Info, SearchCheck } from "lucide-react";
+import { AlertCircle, LineChart, Briefcase, UserRoundSearch, SearchCheck, Info } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BrokerSelectForm } from '@/components/broker/BrokerSelectForm';
 import { BrokerStocksDisplay } from '@/components/broker/BrokerStocksDisplay';
 import { 
-  // fetchStockDetailsAction, // Removed
   getAiWebSearchReportAction,
   fetchAllBrokersAction,
   fetchStocksByBrokerAction
 } from '@/lib/actions';
-import { useToast } from "@/hooks/use-toast";
+// import { useToast } from "@/hooks/use-toast"; // Toasts removed
 
 export default function HomePage() {
   const [selectedStock, setSelectedStock] = useState<{symbol: NepseStockSymbol, name: string} | null>(null);
-  // const [stockDetails, setStockDetails] = useState<StockDisplayProfile | null>(null); // Removed
   const [aiWebSearchReport, setAiWebSearchReport] = useState<GetAIWebSearchStockReportOutput | null>(null);
   const [isStockAnalysisLoading, setIsStockAnalysisLoading] = useState(false);
   const [stockAnalysisError, setStockAnalysisError] = useState<string | null>(null);
@@ -34,7 +32,7 @@ export default function HomePage() {
   const [brokerInsightsError, setBrokerInsightsError] = useState<string | null>(null);
   
   const [activeTab, setActiveTab] = useState("stock-analysis");
-  const { toast } = useToast();
+  // const { toast } = useToast(); // Toasts removed
   const [currentYear, setCurrentYear] = useState<number | null>(null);
 
   useEffect(() => {
@@ -45,37 +43,24 @@ export default function HomePage() {
   const handleStockSearch = async (data: StockSearchFormData) => {
     setIsStockAnalysisLoading(true);
     setStockAnalysisError(null);
-    // setStockDetails(null); // Removed
     setAiWebSearchReport(null); 
     setSelectedStock(data);
 
     try {
-      // toast({ title: "Fetching Stock Data...", description: `Looking up basic details for ${data.symbol}.`}); // Removed
-      // const details = await fetchStockDetailsAction(data.symbol); // Removed
-      // if (!details || !details.company) { // Removed
-      //   const msg = `Basic data for stock symbol "${data.symbol}" not found. It might not be in the database yet.`; // Removed
-      //   setStockAnalysisError(msg); // Removed
-      //   toast({ title: "Data Not Found", description: msg, variant: "destructive" }); // Removed
-      //   setIsStockAnalysisLoading(false); // Removed
-      //   return; // Removed
-      // } // Removed
-      // setStockDetails(details); // Removed
-      // toast({ title: "Stock Data Fetched!", description: `Successfully retrieved basic data for ${details.company.name}.`, variant: "default" }); // Removed
-
-      toast({ title: "Generating AI Web Search Report...", description: `Our AI is 'searching the web' for insights on ${data.symbol} (${data.name}).` });
+      // No toast for starting AI report generation
       const reportOutput = await getAiWebSearchReportAction({ stockSymbol: data.symbol, companyName: data.name });
       setAiWebSearchReport(reportOutput);
       
       if (reportOutput.score === "Error") {
-         toast({ title: "AI Report Generation Issue", description: reportOutput.report || "Could not generate AI report.", variant: "destructive" });
-      } else {
-         toast({ title: "AI Web Search Report Generated!", description: `Analysis for ${data.name} is ready.`, className: "bg-accent text-accent-foreground" });
-      }
+         // Error will be displayed by Alert component
+         setStockAnalysisError(reportOutput.report || "Could not generate AI report.");
+      } 
+      // Success is indicated by data appearing
 
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "An unknown error occurred during stock analysis.";
       setStockAnalysisError(errorMessage);
-      toast({ title: "Stock Analysis Error", description: errorMessage, variant: "destructive" });
+      // Error will be displayed by Alert component
     } finally {
       setIsStockAnalysisLoading(false);
     }
@@ -94,24 +79,20 @@ export default function HomePage() {
     if (!brokerId) {
       const errMsg = "No broker selected or broker ID is missing.";
       setBrokerInsightsError(errMsg);
-      toast({ title: "Broker Selection Error", description: errMsg, variant: "destructive" });
+      // Error will be displayed by Alert component
       setIsBrokerStocksLoading(false);
       return;
     }
     
     try {
-      toast({ title: "Fetching Broker Activity...", description: `Looking up processed stocks for broker.`});
+      // No toast for starting fetch
       const stocks = await fetchStocksByBrokerAction(brokerId);
       setBrokerProcessedStocks(stocks);
-      if (stocks.length > 0) {
-        toast({ title: "Broker Activity Loaded!", description: `Found ${stocks.length} processed stock records for ${currentBroker?.name || 'selected broker'}.`, variant: "default" });
-      } else {
-        toast({ title: "No Activity Found", description: `No processed stock records found for ${currentBroker?.name || 'selected broker'}.`, variant: "default" });
-      }
+      // Success is indicated by data appearing or empty message
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "An unknown error occurred fetching broker stocks.";
       setBrokerInsightsError(errorMessage);
-      toast({ title: "Broker Activity Error", description: errorMessage, variant: "destructive" });
+      // Error will be displayed by Alert component
     } finally {
       setIsBrokerStocksLoading(false);
     }
@@ -136,7 +117,7 @@ export default function HomePage() {
             <Info className="h-5 w-5 text-blue-600 dark:text-blue-400" />
             <AlertTitle className="font-semibold">AI Analysis Notice</AlertTitle>
             <AlertDescription>
-              Stock listings are for selection purposes. All analytical insights (reports, scores, confidence) are generated by an LLM simulating web research for the selected stock symbol and company name. No live database lookups for specific stock fundamentals or real-time market data are performed for this AI analysis.
+              Stock listings are for selection purposes. All analytical insights (reports, scores, confidence, summaries, chart data) are generated by an LLM simulating web research for the selected stock symbol and company name. No live database lookups for fundamentals or market data are performed for this AI analysis.
             </AlertDescription>
           </Alert>
           
@@ -152,23 +133,27 @@ export default function HomePage() {
 
             <TabsContent value="stock-analysis" className="mt-6">
               <StockSearchForm onSearch={handleStockSearch} isLoading={isStockAnalysisLoading} />
-              {isStockAnalysisLoading && <LoadingSpinner size="lg" />}
+              
               {stockAnalysisError && !isStockAnalysisLoading && (
                 <Alert variant="destructive" className="shadow-md mt-6">
                   <AlertCircle className="h-4 w-4" />
-                  <AlertTitle>Error</AlertTitle>
+                  <AlertTitle>Error Analyzing Stock</AlertTitle>
                   <AlertDescription>{stockAnalysisError}</AlertDescription>
                 </Alert>
               )}
-              {!isStockAnalysisLoading && !stockAnalysisError && selectedStock && aiWebSearchReport && (
+
+              {/* Show skeletons or data display */}
+              {(selectedStock || isStockAnalysisLoading) && !stockAnalysisError && (
                 <div className="mt-8">
                   <StockDataDisplay 
-                    stockSymbol={selectedStock.symbol}
-                    companyName={selectedStock.name}
+                    stockSymbol={selectedStock?.symbol || "Loading..."}
+                    companyName={selectedStock?.name || "Loading..."}
                     aiWebSearchReport={aiWebSearchReport}
+                    isLoading={isStockAnalysisLoading}
                   />
                 </div>
               )}
+
               {!isStockAnalysisLoading && !selectedStock && !stockAnalysisError && (
                 <div className="text-center py-10 mt-6">
                   <SearchCheck className="mx-auto h-16 w-16 text-muted-foreground/50" />
@@ -181,22 +166,26 @@ export default function HomePage() {
 
             <TabsContent value="broker-insights" className="mt-6">
               <BrokerSelectForm onBrokerSelect={handleBrokerSelect} isLoading={isBrokerStocksLoading} />
-              {isBrokerStocksLoading && <LoadingSpinner size="lg" />}
+              
               {brokerInsightsError && !isBrokerStocksLoading && (
                 <Alert variant="destructive" className="shadow-md mt-6">
                   <AlertCircle className="h-4 w-4" />
-                  <AlertTitle>Error</AlertTitle>
+                  <AlertTitle>Error Fetching Broker Data</AlertTitle>
                   <AlertDescription>{brokerInsightsError}</AlertDescription>
                 </Alert>
               )}
-              {!isBrokerStocksLoading && !brokerInsightsError && selectedBroker && brokerProcessedStocks.length > 0 && (
+              
+              {/* Show skeletons or data display */}
+              {(selectedBroker || isBrokerStocksLoading) && !brokerInsightsError && (
                  <div className="mt-8">
                   <BrokerStocksDisplay 
                     broker={selectedBroker} 
                     stocks={brokerProcessedStocks}
+                    isLoading={isBrokerStocksLoading}
                   />
                 </div>
               )}
+              
               {!isBrokerStocksLoading && !brokerInsightsError && selectedBroker && brokerProcessedStocks.length === 0 && (
                   <div className="text-center py-10 mt-6">
                     <UserRoundSearch className="mx-auto h-16 w-16 text-muted-foreground/50" />

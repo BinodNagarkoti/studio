@@ -1,28 +1,102 @@
 
 "use client";
 
-import type { GetAIWebSearchStockReportOutput, AITechnicalIndicatorChartInfo } from '@/types';
+import type { GetAIWebSearchStockReportOutput } from '@/types';
 import { SectionCard } from '@/components/common/SectionCard';
 import { TechnicalIndicatorChart } from '@/components/charts/TechnicalIndicatorChart';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { SearchCheck, FileText, BarChart3, NewspaperIcon, AlertTriangle, Activity, Info } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
 import { Alert, AlertDescription } from "@/components/ui/alert";
-
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface StockDataDisplayProps {
   stockSymbol: string;
   companyName: string;
   aiWebSearchReport: GetAIWebSearchStockReportOutput | null;
+  isLoading: boolean;
 }
 
-export function StockDataDisplay({ stockSymbol, companyName, aiWebSearchReport }: StockDataDisplayProps) {
+const SkeletonCard = ({ titleIcon, titleText, childrenCount = 1 }: { titleIcon?: LucideIcon, titleText: string, childrenCount?: number }) => (
+  <Card className="shadow-lg">
+    <CardHeader>
+      <div className="flex items-center gap-3">
+        {titleIcon && <Skeleton className="h-6 w-6 rounded-full" />}
+        <Skeleton className="h-6 w-1/2" />
+      </div>
+    </CardHeader>
+    <CardContent className="space-y-3">
+      {Array.from({ length: childrenCount }).map((_, i) => (
+        <div key={i} className="space-y-2">
+          <Skeleton className="h-4 w-3/4" />
+          <Skeleton className="h-4 w-full" />
+          { i === 0 && childrenCount > 1 && <Skeleton className="h-4 w-5/6" />}
+        </div>
+      ))}
+    </CardContent>
+  </Card>
+);
+
+const ChartSkeletonCard = ({ titleText }: { titleText: string }) => (
+  <Card className="shadow-md">
+    <CardHeader>
+      <Skeleton className="h-6 w-1/2" />
+    </CardHeader>
+    <CardContent className="space-y-3">
+      <Skeleton className="h-4 w-1/4" />
+      <Skeleton className="h-4 w-1/2" />
+      <Skeleton className="h-[200px] w-full" />
+    </CardContent>
+  </Card>
+);
+
+
+export function StockDataDisplay({ stockSymbol, companyName, aiWebSearchReport, isLoading }: StockDataDisplayProps) {
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6 sm:space-y-8">
+        <SectionCard title={`AI Analysis for ${companyName}`} icon={SearchCheck} defaultOpen={true}>
+          <div className="space-y-4">
+            <div className="flex justify-between items-center">
+              <Skeleton className="h-6 w-1/3" />
+              <Skeleton className="h-8 w-1/4" />
+            </div>
+            <Skeleton className="h-24 w-full" />
+          </div>
+        </SectionCard>
+        <SkeletonCard titleIcon={FileText} titleText="AI Fundamental Summary" childrenCount={2} />
+        <SkeletonCard titleIcon={Activity} titleText="AI Technical Summary" childrenCount={2} />
+        <SectionCard title="AI Technical Indicators & Charts" icon={BarChart3} defaultOpen={true}>
+          <div className="space-y-6">
+            <ChartSkeletonCard titleText="Indicator 1" />
+            <ChartSkeletonCard titleText="Indicator 2" />
+          </div>
+        </SectionCard>
+        <SkeletonCard titleIcon={NewspaperIcon} titleText="AI News Summary" childrenCount={2} />
+        <SectionCard title="AI Confidence & Disclaimer" icon={AlertTriangle} defaultOpen={true}>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between mb-1">
+              <Skeleton className="h-5 w-1/3" />
+              <Skeleton className="h-6 w-1/4" />
+            </div>
+            <Skeleton className="h-3 w-full" />
+            <Skeleton className="h-4 w-2/3 mt-1" />
+            <Skeleton className="h-16 w-full mt-4" />
+          </div>
+        </SectionCard>
+      </div>
+    );
+  }
 
   if (!aiWebSearchReport) {
+    // This case should ideally be handled by the parent (e.g. initial state before search)
+    // Or if there's an error and isLoading is false, the parent shows an error Alert.
+    // If somehow it's called with no report and not loading, show minimal.
     return (
        <SectionCard title={`AI Analysis for ${companyName} (${stockSymbol})`} icon={SearchCheck} defaultOpen={true}>
-        <p className="text-muted-foreground">AI report is not available.</p>
+        <p className="text-muted-foreground">AI report is not available or an error occurred.</p>
       </SectionCard>
     );
   }
@@ -38,8 +112,7 @@ export function StockDataDisplay({ stockSymbol, companyName, aiWebSearchReport }
     technical_indicators_chart_data = []
   } = aiWebSearchReport;
 
-
-  if (score === "Error") {
+  if (score === "Error" && !isLoading) { // Check isLoading to prevent flash of error during load
     return (
       <SectionCard title={`AI Analysis Error for ${companyName} (${stockSymbol})`} icon={AlertTriangle} defaultOpen={true}>
         <div className="prose prose-sm max-w-none text-destructive p-3 bg-destructive/10 rounded-md">
